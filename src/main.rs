@@ -4,7 +4,7 @@ pub mod utils;
 pub mod opening;
 pub mod bitboard_operators;
 
-use std::{io::{self, Write}, ops::Add};
+use std::{io::{self, Write}};
 use evaluation::evaluate;
 use chess::{self, ChessMove, Board, Game};
 
