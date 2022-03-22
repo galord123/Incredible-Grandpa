@@ -6,6 +6,8 @@ use crate::utils;
 use crate::bitboard_operators::{open_files, black_pawns_behind_own, white_pawns_behind_own, king_attacks, black_front_spans, file_fill};
 use crate::utils::{get_piece_type, sum_by_table};
 use chess::BitBoard;
+use chess::Piece;
+use chess::Square;
 
 
 pub fn evaluate(board: &chess::Board) -> i32{
@@ -76,6 +78,42 @@ pub fn evaluate(board: &chess::Board) -> i32{
     } 
 
 
+    // handle blocked bishops and rooks
+    let mut w_blocked = 0;
+
+    w_blocked += utils::blocked_bishop(&board, chess::Square::C1, chess::Square::D2, true);
+    w_blocked += utils::blocked_bishop(&board, chess::Square::F1, chess::Square::E2, true);
+
+    let mut b_blocked = 0;
+
+    w_blocked += utils::blocked_bishop(&board, chess::Square::C8, chess::Square::D7, false);
+    w_blocked += utils::blocked_bishop(&board, chess::Square::F8, chess::Square::E7, false);
+
+    // handle blocked rooks
+    if white_king == Square::B1 || white_king == Square::C1{
+        if board.piece_on(Square::A1) == Some(Piece::Rook) || board.piece_on(Square::A2) == Some(Piece::Rook) || board.piece_on(Square::B1) == Some(Piece::Rook){
+            w_blocked += -50;
+        }
+    }
+    if white_king == Square::F1 || white_king == Square::G1{
+        if board.piece_on(Square::H1) == Some(Piece::Rook) || board.piece_on(Square::H2) == Some(Piece::Rook) || board.piece_on(Square::G1) == Some(Piece::Rook){
+            w_blocked += -50;
+        }
+    }
+
+    if black_king == Square::B8 || white_king == Square::C8{
+        if board.piece_on(Square::A8) == Some(Piece::Rook) || board.piece_on(Square::A8) == Some(Piece::Rook) || board.piece_on(Square::B8) == Some(Piece::Rook){
+            b_blocked += -50;
+        }
+    }
+    if black_king == Square::F8 || white_king == Square::G8{
+        if board.piece_on(Square::H8) == Some(Piece::Rook) || board.piece_on(Square::H8) == Some(Piece::Rook) || board.piece_on(Square::G8) == Some(Piece::Rook){
+            b_blocked += -50;
+        }
+    }
+
+
+
     // evaluate king safety
     // calculate pawn shield for white
     let white_king_zone = king_attacks(BitBoard::from_square( white_king));
@@ -118,6 +156,7 @@ pub fn evaluate(board: &chess::Board) -> i32{
     num_white += knightsq_w + pawnsq_w + kingsq_w + queensq_w + bishopsq_w + rooksq_w;
     num_white += white_rooks_on_open_file as i32;
     num_white += white_doubled_pawns ;
+    num_white += w_blocked;
     if !end_game{
         num_white += white_pawn_shield;
         num_white += black_storming_score;
@@ -146,7 +185,8 @@ pub fn evaluate(board: &chess::Board) -> i32{
     let mut num_black: i32 = black_queens.count() as i32 * constants::QUEEN_VAL + black_bishops.count() as i32 * constants::BISHOP_VAL + black_knights.count() as i32 * constants::KNIGHT_VAL + black_pawns.count() as i32 * constants::PAWN_VAL + black_rooks.count() as i32 * constants::ROOK_VAL;
     num_black += knightsq_b + pawnsq_b + kingsq_b + queensq_b + bishopssq_b + rooksq_b;
     num_black += black_rooks_on_open_file as i32;
-    num_black += black_doubled_pawns ;
+    num_black += black_doubled_pawns;
+    num_black += b_blocked;
     if !end_game{
         num_black += black_pawn_shield;
         num_black += white_storming_score;
