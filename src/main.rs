@@ -78,7 +78,7 @@ fn alphabeta(board: &chess::Board, depth: u32, alpha: i32, beta: i32, cache: &mu
     
     let movegen = chess::MoveGen::new_legal(&board);
     let count = chess::MoveGen::new_legal(&board);
-    let mut best_score = -9999;  
+    // let mut best_score = -9999;  
     let mut _alpha = alpha;
 
     
@@ -88,12 +88,13 @@ fn alphabeta(board: &chess::Board, depth: u32, alpha: i32, beta: i32, cache: &mu
         }
         match board.side_to_move(){
             chess::Color::White=>{
-                // print!("white");
-                return best_score - depth as i32
+                // print!("white mated");
+                return -9999 - depth as i32
 
             },
             chess::Color::Black=>{
-                return best_score - depth as i32
+                // print!("black mated");
+                return -9999 - depth as i32
 
             }
         }
@@ -102,32 +103,32 @@ fn alphabeta(board: &chess::Board, depth: u32, alpha: i32, beta: i32, cache: &mu
 
     for chess_move in movegen{
         let passed_board = board.make_move_new(chess_move); 
-        
         let score = -alphabeta(&passed_board, depth-1, -beta, -_alpha, cache);
+        // println!("move {} - {}", chess_move,score);
         
         if score >= beta{
             cache.add(passed_board.get_hash(), (score, depth));
-            return score;
+            return beta;
         }
-        if score > best_score{
-            best_score = score
-        }
+        // if score > best_score{
+        //     best_score = score
+        // }
         if score > alpha{
             _alpha = score
         }
     }
 
-    return best_score
+    return _alpha
 }
 
 
-fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessMove, i32)>>, max_time: u128) -> (Option<chess::ChessMove>, Vec<(ChessMove, i32)>){
+fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessMove, i32)>>, max_time: u128, best_previous_score: i32) -> (Option<chess::ChessMove>, i32, Vec<(ChessMove, i32)>){
     let movegen = chess::MoveGen::new_legal(&board);
     let mut best_move:Option<chess::ChessMove> = None;
     let mut best_score = -9999;  
     let debug = false;
-    let mut alpha = -100000;
-    let beta = 100000;
+    let mut alpha = -1000000;
+    let beta = 1000000;
 
     let mut table: Vec<(ChessMove, i32)> = Vec::new();
     let mut cachetable = chess::CacheTable::new(65536,  (0, 0));
@@ -147,6 +148,7 @@ fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessMove,
             moves = new_moves;
         }
     }
+    
     let mut time_spent = 0;
     for chess_move in moves{
         let now = Instant::now();
@@ -171,8 +173,8 @@ fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessMove,
         }
         let elapsed = now.elapsed();
         time_spent += elapsed.as_millis();
-        if time_spent > max_time{
-            return (None, table);
+        if best_score + 100 >= best_previous_score && time_spent > max_time{
+            return (None, -9999, table);
         }
     }
     
@@ -180,24 +182,27 @@ fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessMove,
 
     table.sort_by_key(|x| -x.1);
 
-    return (best_move, table)
+    return (best_move, best_score, table)
 }
 
 
 fn choose_move(board: chess::Board, depth: u32, remaining_time: u128) ->Option<chess::ChessMove>{
     let mut table: Option<Vec<(ChessMove, i32)>> = None;
     let mut best_move:Option<chess::ChessMove> = None;
+    let mut best_score = -9999; 
     let allowed_time =  remaining_time / 30; 
     let mut total_time = 0; 
     
     for _depth in 0..depth{
         let now = Instant::now();
-        let result = search_depth(&board, _depth, &table, 5000);
+        let time_left = allowed_time - total_time.min(allowed_time);
+        let result = search_depth(&board, _depth, &table, time_left, best_score);
         if result.0.is_none(){
             return best_move
         }
         best_move = result.0;
-        table = Some(result.1);  
+        best_score = result.1;
+        table = Some(result.2);  
         let elapsed = now.elapsed();
         total_time += elapsed.as_millis(); 
 
@@ -206,13 +211,14 @@ fn choose_move(board: chess::Board, depth: u32, remaining_time: u128) ->Option<c
     while total_time < allowed_time{
         let now = Instant::now();
         let time_left = allowed_time - total_time.min(allowed_time);
-        let result = search_depth(&board, _depth, &table, time_left);
+        let result = search_depth(&board, _depth, &table, time_left, best_score);
         if result.0.is_none(){
             return best_move
         }
         best_move = result.0;
         _depth += 1; 
-        table = Some(result.1);  
+        best_score = result.1;
+        table = Some(result.2);  
         let elapsed = now.elapsed();
         total_time += elapsed.as_millis(); 
     }
@@ -510,7 +516,13 @@ fn handle_uci(){
 
 fn main() {
     let debug = false;
+
     if debug{
+
+        // let test = Board::from_str("6k1/1p3ppp/4b3/2p4q/3p4/P2PB1QP/2P3PK/8 b - - 0 26").ok().expect("msg");
+
+        // println!("{}",play_bot_move(test, 10, 0, 20000000000*60*1000));
+
         test_match()
     }else{
         handle_uci();
@@ -560,6 +572,9 @@ mod test{
     fn test_mate_white_3(){
         run_mate(TestPositon{ pos: "1k6/1P5Q/8/7B/8/5K2/8/8 w - - 0 1".to_string(),mate_in: 3, mating_side_white: true});
     }
-    
+    #[test]
+    fn test_mate_white_2_(){
+        run_mate(TestPositon{pos: "6k1/1p3ppp/4b3/2p4q/8/P2Pp1QP/2P3PK/8 w - - 0 26 ".to_string(), mate_in: 2, mating_side_white: true})
+    }
 
 }

@@ -1,12 +1,27 @@
 // piece values 
-pub const QUEEN_VAL: i32 = 900;
-pub const ROOK_VAL: i32 = 500;
-pub const BISHOP_VAL: i32 = 330;
-pub const KNIGHT_VAL: i32 = 320;
-pub const PAWN_VAL: i32 = 100;
-pub const DOUBLED_PAWNS_DEBUFF: i32= -25;
+pub const QUEEN_VAL: Score = (900, 900);
+pub const ROOK_VAL: Score = (500, 500);
+pub const BISHOP_VAL: Score = (330, 330);
+pub const KNIGHT_VAL: Score = (320, 320);
+pub const PAWN_VAL: Score = (100, 110);
+pub const DOUBLED_PAWNS_DEBUFF: Score = (-50, -60);
+pub const ROOK_ON_OPEN_FILE: Score = (10, 10);
 pub const NAME: &str = "Incredible Grandpa";
 
+pub type Score = (i32, i32);
+
+pub trait Access{
+    fn access_endgame(&self, endgame: bool) -> i32;
+}
+
+impl Access for Score {
+    fn access_endgame(&self, endgame: bool) -> i32 {
+        if endgame{
+            return self.1;
+        }
+        return self.0;
+    }
+}
 
 
 pub static PAWN_SQUARES_TABLE: &'static [i32] = &[0, 0, 0, 0, 0, 0, 0, 0,
@@ -17,6 +32,26 @@ pub static PAWN_SQUARES_TABLE: &'static [i32] = &[0, 0, 0, 0, 0, 0, 0, 0,
 10, 10, 20, 30, 30, 20, 10, 10,
 50, 50, 50, 50, 50, 50, 50, 50,
 0, 0, 0, 0, 0, 0, 0, 0];
+
+pub static KNIGHT_OUTPOST_TABLE_WHITE: &'static [i32] = &[0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0,
+0, 2, 5, 10, 10, 5, 2, 0,
+0, 2, 5, 10, 10, 5, 2, 0,
+0, 0, 4, 5, 5, 4, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0];
+
+
+pub static KNIGHT_OUTPOST_TABLE_BLACK: &'static [i32] = &[0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 4, 5, 5, 4, 0, 0,
+0, 2, 5, 10, 10, 5, 2, 0,
+0, 2, 5, 10, 10, 5, 2, 0,
+0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0];
+
 
 
 pub static BISHOP_SQUARES_TABLE: &'static [i32] = &[-20,-10,-10,-10,-10,-10,-10,-20,

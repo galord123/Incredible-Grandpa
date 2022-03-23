@@ -14,19 +14,19 @@ impl Entry{
 }
 
 
-pub fn load_opening_dataset(file_name: String){
-    let opening_table = chess::CacheTable::new(65536, Entry{key: 0, chess_move:0, wieght: 0, learn: 0});
-    let file = std::fs::read(file_name).ok().expect("error_loading data");
+// pub fn load_opening_dataset(file_name: String){
+//     let opening_table = chess::CacheTable::new(65536, Entry{key: 0, chess_move:0, wieght: 0, learn: 0});
+//     let file = std::fs::read(file_name).ok().expect("error_loading data");
     
     
-    for byte_group in file{
+//     for byte_group in file{
 
 
 
-    }
+//     }
 
 
-}
+// }
 
 
 

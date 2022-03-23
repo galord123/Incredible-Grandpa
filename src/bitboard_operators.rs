@@ -6,11 +6,11 @@ const NOT_A_FILE: u64 = 0xfefefefefefefefe; // ~0x0101010101010101
 const NOT_H_FILE: u64 = 0x7f7f7f7f7f7f7f7f; // ~0x8080808080808080
 
 fn east_one (b: BitBoard) -> BitBoard {return BitBoard::new((b.0 << 1) & NOT_A_FILE)}
-fn noEaOne (b: BitBoard) -> BitBoard {return BitBoard::new((b.0 << 9) & NOT_A_FILE)}
-fn soEaOne (b: BitBoard) -> BitBoard {return BitBoard::new((b.0 >> 7) & NOT_A_FILE)}
+fn north_east_one (b: BitBoard) -> BitBoard {return BitBoard::new((b.0 << 9) & NOT_A_FILE)}
+fn south_east_one (b: BitBoard) -> BitBoard {return BitBoard::new((b.0 >> 7) & NOT_A_FILE)}
 fn west_one (b: BitBoard) -> BitBoard {return BitBoard::new((b.0 >> 1) & NOT_H_FILE)}
-fn soWeOne (b: BitBoard) -> BitBoard {return BitBoard::new((b.0 >> 9) & NOT_H_FILE)}
-fn noWeOne (b: BitBoard) -> BitBoard {return BitBoard::new((b.0 << 7) & NOT_H_FILE)}
+fn south_west_one (b: BitBoard) -> BitBoard {return BitBoard::new((b.0 >> 9) & NOT_H_FILE)}
+fn north_west_one (b: BitBoard) -> BitBoard {return BitBoard::new((b.0 << 7) & NOT_H_FILE)}
 
 
 fn sout_one (b: BitBoard) -> BitBoard {return  BitBoard::new(b.0 >> 8)}
@@ -49,7 +49,27 @@ pub fn closed_files(wpanws: BitBoard, bpawns:BitBoard) -> BitBoard{
 
 pub fn white_front_spans(wpawns:BitBoard) -> BitBoard{return nort_one (nort_fill(wpawns));}
 pub fn black_rear_spans (bpawns:BitBoard) -> BitBoard{return nort_one (nort_fill(bpawns));}
-pub fn black_front_spans(bpawns:BitBoard) -> BitBoard{return sout_one (sout_fill(bpawns));}pub fn white_rear_spans (wpawns:BitBoard) -> BitBoard{return sout_one (sout_fill(wpawns));}
+pub fn black_front_spans(bpawns:BitBoard) -> BitBoard{return sout_one (sout_fill(bpawns));}
+pub fn white_rear_spans (wpawns:BitBoard) -> BitBoard{return sout_one (sout_fill(wpawns));}
+
+
+pub fn white_pawn_east_attacks(wpawns: BitBoard) -> BitBoard {return north_east_one(wpawns);}
+pub fn white_pawn_west_attacks(wpawns: BitBoard) -> BitBoard {return north_west_one(wpawns);}
+
+pub fn black_pawn_east_attacks(bpawns: BitBoard) -> BitBoard {return south_east_one(bpawns);}
+pub fn black_pawn_west_attacks(bpawns: BitBoard) -> BitBoard {return south_west_one(bpawns);}
+
+
+
+pub fn white_pawn_any_attacks(wpawns: BitBoard) -> BitBoard {
+    return white_pawn_east_attacks(wpawns) | white_pawn_west_attacks(wpawns);
+}
+
+ pub fn black_pawn_any_attacks(bpawns: BitBoard) -> BitBoard {
+    return black_pawn_east_attacks(bpawns) | black_pawn_west_attacks(bpawns);
+}
+
+
 
 
  // pawns with at least one pawn in front on the same file
@@ -64,6 +84,7 @@ pub fn black_pawns_behind_own(bpawns: BitBoard) -> BitBoard {return bpawns & bla
  // pawns with at least one pawn behind on the same file
 pub fn black_pawns_infront_own (bpawns: BitBoard) -> BitBoard {return bpawns & black_front_spans(bpawns);}
 
+
 pub fn king_attacks(king_set:BitBoard) -> BitBoard{
     let mut _king_set = king_set;
     let mut attacks: BitBoard = east_one(_king_set) | west_one(_king_set);
@@ -73,13 +94,14 @@ pub fn king_attacks(king_set:BitBoard) -> BitBoard{
  }
 
 
- pub fn white_passed_pawns(wpawns:BitBoard, bpawns:BitBoard) -> BitBoard {
+pub fn white_passed_pawns(wpawns:BitBoard, bpawns:BitBoard) -> BitBoard {
     let mut all_front_spans: BitBoard = black_front_spans(bpawns);
     all_front_spans |= east_one(all_front_spans)
                   |  west_one(all_front_spans);
     return wpawns & all_front_spans.not();
  }
  
+
 pub fn black_passed_pawns(bpawns: BitBoard, wpawns: BitBoard) -> BitBoard {
     let mut all_front_spans = white_front_spans(wpawns);
     all_front_spans |= east_one(all_front_spans)
