@@ -1,14 +1,24 @@
+pub const NAME: &str = "Incredible Grandpa";
+pub type Score = (i32, i32);
+
 // piece values 
 pub const QUEEN_VAL: Score = (900, 900);
 pub const ROOK_VAL: Score = (500, 500);
 pub const BISHOP_VAL: Score = (330, 330);
 pub const KNIGHT_VAL: Score = (320, 320);
 pub const PAWN_VAL: Score = (100, 110);
-pub const DOUBLED_PAWNS_DEBUFF: Score = (-50, -60);
-pub const ROOK_ON_OPEN_FILE: Score = (10, 10);
-pub const NAME: &str = "Incredible Grandpa";
 
-pub type Score = (i32, i32);
+pub const FUTOLITY_MARGIN: i32 = 120; 
+pub const BISHOP_PAIR: Score = (50, 50);
+pub const ROOK_ON_OPEN_FILE: Score = (10, 10);
+pub const ROOK_ON_HALF_OPEN_FILE: Score = (5, 5);
+pub const TEMPO_BONUS: Score = (20, 10);
+
+// pawns
+pub const DOUBLED_PAWNS_DEBUFF: Score = (-50, -60);
+pub const ISOLATED_PAWNS_DEBUFF: Score = (-10, -20);
+pub const BACKWARD_PAWNS_DEBUFF: Score = (-8, -10);
+
 
 pub trait Access{
     fn access_endgame(&self, endgame: bool) -> i32;
@@ -33,6 +43,16 @@ pub static PAWN_SQUARES_TABLE: &'static [i32] = &[0, 0, 0, 0, 0, 0, 0, 0,
 50, 50, 50, 50, 50, 50, 50, 50,
 0, 0, 0, 0, 0, 0, 0, 0];
 
+pub static PAWN_SQUARES_TABLE_BLACK: &'static [i32] = &[0, 0, 0, 0, 0, 0, 0, 0,
+50, 50, 50, 50, 50, 50, 50, 50,
+10, 10, 20, 30, 30, 20, 10, 10,
+5, 5, 10, 25, 25, 10, 5, 5,
+0, 0, 0, 20, 20, 0, 0, 0,
+5, -5, -10, 0, 0, -10, -5, 5,
+5, 10, 10, -20, -20, 10, 10, 5,
+0, 0, 0, 0, 0, 0, 0, 0];
+
+
 pub static KNIGHT_OUTPOST_TABLE_WHITE: &'static [i32] = &[0, 0, 0, 0, 0, 0, 0, 0,
 0, 0, 0, 0, 0, 0, 0, 0,
 0, 0, 0, 0, 0, 0, 0, 0,
@@ -53,7 +73,6 @@ pub static KNIGHT_OUTPOST_TABLE_BLACK: &'static [i32] = &[0, 0, 0, 0, 0, 0, 0, 0
 0, 0, 0, 0, 0, 0, 0, 0];
 
 
-
 pub static BISHOP_SQUARES_TABLE: &'static [i32] = &[-20,-10,-10,-10,-10,-10,-10,-20,
 -10,  0,  0,  0,  0,  0,  0,-10,
 -10,  0,  5, 10, 10,  5,  0,-10,
@@ -62,6 +81,15 @@ pub static BISHOP_SQUARES_TABLE: &'static [i32] = &[-20,-10,-10,-10,-10,-10,-10,
 -10, 10, 10, 10, 10, 10, 10,-10,
 -10,  5,  0,  0,  0,  0,  5,-10,
 -20,-10,-10,-10,-10,-10,-10,-20,];
+
+pub static BISHOP_SQUARES_TABLE_BLACK: &'static [i32] = &[-20, -10, -10, -10, -10, -10, -10, -20,
+-10, 5, 0, 0, 0, 0, 5, -10, 
+-10, 10, 10, 10, 10, 10, 10, -10,
+-10, 0, 10, 10, 10, 10, 0, -10,
+-10, 5, 5, 10, 10, 5, 5, -10,
+-10, 0, 5, 10, 10, 5, 0, -10,
+-10, 0, 0, 0, 0, 0, 0, -10,
+-20, -10, -10, -10, -10, -10, -10, -20];
 
 
 pub static QUEEN_SQUARES_TABLE: &'static [i32] = &[-20,-10,-10, -5, -5,-10,-10,-20,
@@ -74,6 +102,8 @@ pub static QUEEN_SQUARES_TABLE: &'static [i32] = &[-20,-10,-10, -5, -5,-10,-10,-
 -20,-10,-10, -5, -5,-10,-10,-20];
 
 
+pub static QUEEN_SQUARES_TABLE_BLACK: &'static [i32] = &[-20, -10, -10, -5, -5, -10, -10, -20, -10, 0, 0, 0, 0, 5, 0, -10, -10, 0, 5, 5, 5, 5, 5, -10, -5, 0, 5, 5, 5, 5, 0, 0, -5, 0, 5, 5, 5, 5, 0, -5, -10, 0, 5, 5, 5, 5, 0, -10, -10, 0, 0, 0, 0, 0, 0, -10, -20, -10, -10, -5, -5, -10, -10, -20];
+
 pub static KING_SQUARES_TABLE: &'static [i32] = &[
     20, 30, 10, 0, 0, 10, 30, 20,
     20, 20, 0, 0, 0, 0, 20, 20,
@@ -84,6 +114,7 @@ pub static KING_SQUARES_TABLE: &'static [i32] = &[
     -30, -40, -40, -50, -50, -40, -40, -30,
     -30, -40, -40, -50, -50, -40, -40, -30];
 
+pub static KING_SQUARES_TABLE_BLACK: &'static [i32] = &[-30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40, -30, -20, -30, -30, -40, -40, -30, -30, -20, -10, -20, -20, -20, -20, -20, -20, -10, 20, 20, 0, 0, 0, 0, 20, 20, 20, 30, 10, 0, 0, 10, 30, 20];
 
 pub static KING_ENDGAME_TABLE: &'static [i32] = &[
     -50,-40,-30,-20,-20,-30,-40,-50,
@@ -96,6 +127,8 @@ pub static KING_ENDGAME_TABLE: &'static [i32] = &[
     -50,-30,-30,-30,-30,-30,-30,-50
 ];
 
+pub static KING_ENDGAME_TABLE_BLACK: &'static [i32] = &[-50, -30, -30, -30, -30, -30, -30, -50, -30, -30, 0, 0, 0, 0, -30, -30, -30, -10, 20, 30, 30, 20, -10, -30, -30, -10, 30, 40, 40, 30, -10, -30, -30, -10, 30, 40, 40, 30, -10, -30, -30, -10, 20, 30, 30, 20, -10, -30, -30, -20, -10, 0, 0, -10, -20, -30, -50, -40, -30, -20, -20, -30, -40, -50];
+
 
 pub static KNIGHT_SQUARES_TABLE: &'static [i32] = &[-50, -40, -30, -30, -30, -30, -40, -50,
 -40, -20, 0, 5, 5, 0, -20, -40,
@@ -106,6 +139,7 @@ pub static KNIGHT_SQUARES_TABLE: &'static [i32] = &[-50, -40, -30, -30, -30, -30
 -40, -20, 0, 0, 0, 0, -20, -40,
 -50, -40, -30, -30, -30, -30, -40, -50];
 
+pub static KNIGHT_SQUARES_TABLE_BLACK: &'static [i32] = &[-50, -40, -30, -30, -30, -30, -40, -50, -40, -20, 0, 0, 0, 0, -20, -40, -30, 0, 10, 15, 15, 10, 0, -30, -30, 5, 15, 20, 20, 15, 5, -30, -30, 0, 15, 20, 20, 15, 0, -30, -30, 5, 10, 15, 15, 10, 5, -30, -40, -20, 0, 5, 5, 0, -20, -40, -50, -40, -30, -30, -30, -30, -40, -50];
 
 pub static ROOK_SQUARES_TABLE: &'static [i32] = &[ 0,  0,  0,  0,  0,  0,  0,  0,
 5, 10, 10, 10, 10, 10, 10,  5,
@@ -116,6 +150,12 @@ pub static ROOK_SQUARES_TABLE: &'static [i32] = &[ 0,  0,  0,  0,  0,  0,  0,  0
 -5,  0,  0,  0,  0,  0,  0, -5,
 0,  0,  0,  5,  5,  0,  0,  0];
 
+pub static ROOK_SQUARES_TABLE_BLACK: &'static [i32] = &[0, 0, 0, 5, 5, 0, 0, 0, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, 5, 10, 10, 10, 10, 10, 10, 5, 0, 0, 0, 0, 0, 0, 0, 0];
+
+pub static PIECES_ATTACKING_KING: &'static [f32] = &[0.0, 0.0, 0.5, 0.75, 0.88, 0.94, 0.97, 0.99, 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.];
+
 pub static PASSED_PAWNS_WHITE: &'static [i32] = &[0, 0, 16, 31, 63, 405, 810, 900];
+pub static PASSED_PAWNS_WHITE_OPENING: &'static [f32] = &[0., 0., 0., 0.1, 0.3, 0.6, 1., 1.];
 
 pub static PASSED_PAWNS_BLACK: &'static [i32] = &[900, 810, 405, 63, 31, 16, 0, 0];
+pub static PASSED_PAWNS_BLACK_OPENING: &'static [f32] = &[1., 1., 0.6, 0.3, 0.1, 0., 0., 0.];
