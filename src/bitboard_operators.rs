@@ -1,4 +1,4 @@
-use std::ops::{Not};
+use std::ops::{Not, BitAnd};
 
 use chess::{BitBoard};
 
@@ -38,6 +38,10 @@ pub fn file_fill(gen: BitBoard)-> BitBoard{
     return nort_fill(gen) | sout_fill(gen);
  }
 
+
+pub fn half_open_files(gen: BitBoard) ->BitBoard {return file_fill(gen).not();}
+ 
+
 pub fn open_files(wpanws: BitBoard , bpawns: BitBoard) -> BitBoard {
     return file_fill(wpanws).not() & file_fill(bpawns).not();
  }
@@ -46,6 +50,9 @@ pub fn closed_files(wpanws: BitBoard, bpawns:BitBoard) -> BitBoard{
     return file_fill(wpanws) & file_fill(bpawns);
  }
 
+
+pub fn east_attack_file_fill (pawns: BitBoard) -> BitBoard {return east_one(file_fill(pawns));}
+pub fn west_attack_file_fill (pawns: BitBoard) -> BitBoard {return west_one(file_fill(pawns));}
 
 pub fn white_front_spans(wpawns:BitBoard) -> BitBoard{return nort_one (nort_fill(wpawns));}
 pub fn black_rear_spans (bpawns:BitBoard) -> BitBoard{return nort_one (nort_fill(bpawns));}
@@ -83,6 +90,38 @@ pub fn black_pawns_behind_own(bpawns: BitBoard) -> BitBoard {return bpawns & bla
 
  // pawns with at least one pawn behind on the same file
 pub fn black_pawns_infront_own (bpawns: BitBoard) -> BitBoard {return bpawns & black_front_spans(bpawns);}
+
+
+
+
+pub fn no_neighbor_on_east_file (pawns: BitBoard) -> BitBoard {
+    return pawns & west_attack_file_fill(pawns).not();
+}
+
+pub fn no_neighbor_on_west_file (pawns: BitBoard) -> BitBoard{
+    return pawns & east_attack_file_fill(pawns).not();
+}
+
+pub fn isolanis(pawns: BitBoard) -> BitBoard{
+   return  no_neighbor_on_east_file(pawns)
+         & no_neighbor_on_west_file(pawns);
+}
+
+pub fn half_isolanis(pawns: BitBoard) -> BitBoard {
+   return  no_neighbor_on_east_file(pawns)
+         ^ no_neighbor_on_west_file(pawns);
+}
+
+
+
+pub fn white_backward(wpawns: BitBoard, bpawns: BitBoard) -> BitBoard {
+    let  stops = BitBoard::new(wpawns.0 << 8);
+    let white_attack_spans = file_fill(white_pawn_any_attacks(wpawns));
+                     
+    
+    let black_attacks     = black_pawn_any_attacks(bpawns);
+    return BitBoard::new((stops & black_attacks & white_attack_spans.not()).0 >> 8);
+ }
 
 
 pub fn king_attacks(king_set:BitBoard) -> BitBoard{

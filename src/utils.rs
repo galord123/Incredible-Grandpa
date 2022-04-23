@@ -1,7 +1,6 @@
 use chess::{Square, BitBoard, Board};
 use std::ops::BitAnd;
 
-
 pub fn print_board(fen:String){
     let split = fen.split("/");
     
