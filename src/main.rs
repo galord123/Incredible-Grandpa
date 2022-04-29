@@ -36,7 +36,7 @@ fn iterative_deepening(board: &Board, remaining_time: u128, depth: u32) -> (Opti
         let now = Instant::now();
         let time_left = allowed_time - total_time.min(allowed_time);
         
-        let result = search::search_depth(&board, _depth, &table, time_left, best_score, &mut cachetable, &mut pawn_table);
+        let result = search::search_depth(&board, _depth, &table, time_left, (best_move, best_score), &mut cachetable, &mut pawn_table);
         if result.0.is_none() || result.4{
             println!("time took {}", total_time);
             println!("evaluated {} positions. {} transpostions recorded and {} used", info.nodes_searched, info.transpostions_recorded, info.transpostions_used);
@@ -420,6 +420,23 @@ fn run_test_position(position: &str, remaining_time: u128){
     println!("time to complete {:?}", elapsed);
 }
 
+
+
+fn check_eval(position: &str, pawn_table: &mut chess::CacheTable<i32>){
+    let board = Board::from_str(position).ok().expect("msg"); 
+    let now = Instant::now();
+    let eval = evaluation::evaluate(&board);
+    let elapsed = now.elapsed();
+    println!("{} - {:?}", eval, elapsed);
+    
+    let mut info = search::SearchInfo::new();
+    let now = Instant::now();
+    
+    let eval = evaluation::evaluate_rework(&board) + search::pawn_table_lookup(&board, pawn_table, &mut info);
+    let elapsed = now.elapsed();
+    println!("{} - {:?}", eval, elapsed);
+}
+
 fn main() {
     let debug = false;
     // //let board = Board::from_str("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").ok().expect("invalid position");
@@ -446,16 +463,13 @@ fn main() {
         //     run_test_position(s.as_str(), 10*60*1000)
         // };
         
-        let board = Board::from_str("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").ok().expect("msg"); 
-        let now = Instant::now();
-        let eval = evaluation::evaluate(&board);
-        let elapsed = now.elapsed();
-        println!("{} - {:?}", eval, elapsed);
+        let mut pawn_table = chess::CacheTable::new(65536,  0);
+        check_eval("rnbqkb1r/ppp1pppp/5n2/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR w KQkq - 1 3", &mut pawn_table);
+        check_eval("rnbqkbnr/ppp1pppp/8/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR b KQkq - 0 2", &mut pawn_table);
+        check_eval("rnbqkb1r/ppp1pppp/5n2/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR w KQkq - 1 3", &mut pawn_table);
+        check_eval("rnbqkbnr/ppp1pppp/8/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR b KQkq - 0 2", &mut pawn_table);
+        check_eval("rnbqkb1r/ppp1pppp/5n2/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR w KQkq - 1 3", &mut pawn_table);
 
-        let now = Instant::now();
-        let eval = evaluation::evaluate_rework(&board);
-        let elapsed = now.elapsed();
-        println!("{} - {:?}", eval, elapsed);
 
         // run_test_position("rnbqkb1r/p3pppp/1p6/2ppP3/3N4/2P5/PPP1QPPP/R1B1KB1R w KQkq -", 10*60*1000);
         // run_test_position("8/8/7p/3KNN1k/2p4p/8/3P2p1/8 w - -", 10*60*1000);
@@ -481,12 +495,12 @@ mod test{
     fn run_mate(test_pos: TestPositon){
         let now = Instant::now();
 
-            let count = play_game(Some(test_pos.pos.to_string()), false, test_pos.mating_side_white, 0, Some(10));
+            let count = play_game(Some(test_pos.pos.to_string()), false, test_pos.mating_side_white, 9, Some(10));
             let elapsed = now.elapsed();
             let turns = (count as f32/2 as f32).ceil();
+            println!("mate found in {} move, should be in {}, Elapsed time: {:.2?}", turns, test_pos.mate_in, elapsed);
             assert_eq!(turns, test_pos.mate_in as f32);
             
-            println!("mate found in {} move, should be in {}, Elapsed time: {:.2?}", turns, test_pos.mate_in, elapsed);
 
     }
 

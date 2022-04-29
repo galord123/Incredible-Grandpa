@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 use std::ops::BitAnd;
 use std::ops::BitOr;
 use crate::bitboard_operators;
@@ -628,3 +629,157 @@ pub fn evaluate_pawn_structure(black_pawns: BitBoard, white_pawns: BitBoard, end
     score += white_doubled_pawns - black_doubled_pawns + white_passed_pawns_value - black_passed_pawns_value + white_isolated_pawns - black_isolated_pawns + white_backward_pawns - black_backward_pawns;
     score
 }
+
+pub fn material_balance(board: &chess::Board) -> i32{
+    let mut score = 0;
+    let mut white_material = 0;
+    let mut black_material = 0;
+    let squares = board.combined();
+    for square in *squares{
+        match board.color_on(square){
+            Some(chess::Color::White) => {
+                match board.piece_on(square){
+                    Some(chess::Piece::Pawn) => {
+                        white_material += constants::PAWN_VAL.0;
+                    },
+                    Some(chess::Piece::Knight) => {
+                        white_material += constants::KNIGHT_VAL.0;
+                    },
+                    Some(chess::Piece::Bishop) => {
+                        white_material += constants::BISHOP_VAL.0;
+                    },
+                    Some(chess::Piece::Rook) => {
+                        white_material += constants::ROOK_VAL.0;
+                    },
+                    Some(chess::Piece::Queen) => {
+                        white_material += constants::QUEEN_VAL.0;
+                    },
+                    Some(chess::Piece::King) => {
+                        
+                    },
+                    _ => {
+                        panic!("Invalid piece on square");
+                    }
+                }
+            },
+            Some(chess::Color::Black) => {
+                match board.piece_on(square){
+                    Some(chess::Piece::Pawn) => {
+                        black_material += constants::PAWN_VAL.0;
+                    },
+                    Some(chess::Piece::Knight) => {
+                        black_material += constants::KNIGHT_VAL.0;
+                    },
+                    Some(chess::Piece::Bishop) => {
+                        black_material += constants::BISHOP_VAL.0;
+                    },
+                    Some(chess::Piece::Rook) => {
+                        black_material += constants::ROOK_VAL.0;
+                    },
+                    Some(chess::Piece::Queen) => {
+                        black_material += constants::QUEEN_VAL.0;
+                    },
+                    Some(chess::Piece::King) => {
+                       
+                    },
+                    _ => {
+                        panic!("Invalid piece on square");
+                    }
+                }
+            },
+            _ => {
+                panic!("Invalid color on square");
+            }
+        }
+    }
+    match board.side_to_move(){
+        chess::Color::White => {
+            score += white_material - black_material;
+        },
+        chess::Color::Black => {
+            score -= white_material - black_material;
+        }
+    }
+    
+    score
+}
+
+
+// fn get_smallest_attacker(board: &chess::Board, square: Square, side: chess::Color) -> chess::Piece{
+//     let mut smallest_attacker = chess::Piece::Pawn;
+//     let mut smallest_attacker_value = constants::PAWN_VAL.0;
+//     for attacker in board.attackers_to(square, side){
+//         let attacker_value = constants::PIECE_VAL[attacker.to_index()];
+//         if attacker_value < smallest_attacker_value{
+//             smallest_attacker = attacker;
+//             smallest_attacker_value = attacker_value;
+//         }
+//     }
+//     smallest_attacker
+// }
+
+// // static exchange evaluation
+// pub fn static_exchange(board: &chess::Board, square: Square, side: chess::Color) -> i32{
+//     let mut value = 0;
+//     let piece = get_smallest_attacker(board, square);
+//     if let Some(piece) = piece{
+//         let passed_board = board.make_move_new(chess::ChessMove::new(square, square, piece, None));
+//         value = cmp::max(value, passed_board.static_exchange(square, side));
+
+// get piece value
+// fn get_piece_value(piece: chess::Piece) -> i32{
+//     match piece{
+//         chess::Piece::Pawn => {
+//             constants::PAWN_VAL.0
+//         },
+//         chess::Piece::Knight => {
+//             constants::KNIGHT_VAL.0
+//         },
+//         chess::Piece::Bishop => {
+//             constants::BISHOP_VAL.0
+//         },
+//         chess::Piece::Rook => {
+//             constants::ROOK_VAL.0
+//         },
+//         chess::Piece::Queen => {
+//             constants::QUEEN_VAL.0
+//         },
+//         chess::Piece::King => {
+//             999
+//         },
+//         _ => {
+//             panic!("Invalid piece");
+//         }
+//     }
+// }
+
+
+
+
+// fn see ( board: &chess::Board, toSq: Square,  target: Piece, frSq: Square,  aPiece: Piece) -> i32{
+// {
+//     let gain: [i32; 32] = [0; 32];
+//     let mut d = 0;
+//     let mayXray: BitBoard = board.pieces(Piece::Pawn) | board.pieces(Piece::Bishop) | board.pieces(Piece::Rook) | board.pieces(Piece::Queen);
+//     let fromSet = BitBoard::from_square(frSq);
+//     let mut occ     = board.combined();
+//     let mut attadef = attacksTo( occ, toSq );
+//     gain[d]     = get_piece_value(target);
+//     loop {
+//         d += 1; // next depth and side
+//         gain[d]  = value[aPiece] - gain[d-1]; // speculative store, if defended
+//         if std::cmp::max(-gain[d-1], gain[d]) < 0{ 
+//             break;
+//         } // pruning does not influence the result
+//         attadef ^= fromSet; // reset bit in set to traverse
+//         *occ     ^= fromSet; // reset bit in temporary occupancy (for x-Rays)
+//         if ( fromSet & mayXray )
+//             attadef |= considerXrays(occ, ..);
+//         fromSet  = getLeastValuablePiece (attadef, d & 1, aPiece);
+//         if (fromSet.0 == 0){ break;}
+//     } 
+//     while (--d){
+//         gain[d-1]= -max (-gain[d-1], gain[d])
+//     }
+//     return gain[0];
+// }

@@ -1,4 +1,4 @@
-use std::ops::{Not, BitAnd};
+use std::ops::Not;
 
 use chess::{BitBoard};
 

@@ -1,7 +1,8 @@
 use chess::{self, Board, ChessMove, Piece, Square, BitBoard};
-use crate::{evaluation::{evaluate, self}, constants::{self, Access}, utils::get_piece_type};
-use std::{time::Instant, io::{self, Write}, hash::{Hash, Hasher}, borrow::Borrow};
+use crate::{evaluation, constants::{self, Access}, utils::get_piece_type};
+use std::{time::Instant, io::{self, Write}, hash::{Hash, Hasher}};
 use std::collections::hash_map::DefaultHasher;
+use std::cmp::Ordering;
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub enum Nodetype {
@@ -47,7 +48,7 @@ pub struct Entry{
 
 
 
-pub fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessMove, i32)>>, max_time: u128, best_previous_score: i32, cachetable: &mut chess::CacheTable<Entry>, pawn_table: &mut chess::CacheTable<i32>) -> (Option<chess::ChessMove>, i32, Vec<(ChessMove, i32)>, SearchInfo, bool){
+pub fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessMove, i32)>>, max_time: u128, best_previous: ( Option<ChessMove>, i32), cachetable: &mut chess::CacheTable<Entry>, pawn_table: &mut chess::CacheTable<i32>) -> (Option<chess::ChessMove>, i32, Vec<(ChessMove, i32)>, SearchInfo, bool){
     let movegen = chess::MoveGen::new_legal(&board);
     let mut best_move:Option<chess::ChessMove> = None;
     let mut best_score = -9999;  
@@ -60,20 +61,57 @@ pub fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessM
     // let mut cachetable = chess::CacheTable::new(65536,  (0, 0));
 
     let mut moves: Vec<ChessMove> = movegen.collect();
+    if depth < 4{
+        match sorted_moves {
+            None=>{    
+            },
+            Some(moves_list)=>{
+                let mut new_moves: Vec<ChessMove> = Vec::new(); 
+                for chess_move in moves_list{
+                    new_moves.push(chess_move.0);
+                    println!("{:?}", chess_move.1);
 
-    match sorted_moves {
-        None=>{    
-        },
-        Some(moves_list)=>{
-            let mut new_moves: Vec<ChessMove> = Vec::new(); 
-            for chess_move in moves_list{
-                new_moves.push(chess_move.0);
-                println!("{:?}", chess_move.1);
-
+                }
+                moves = new_moves;
             }
-            moves = new_moves;
         }
     }
+    else{
+        // sort moves by capture and checks and then by score
+        moves.sort_by(|a, b| {
+            let a_score = table.iter().find(|&x| x.0 == *a).unwrap_or(&(ChessMove::default(), 0)).1;
+            let b_score = table.iter().find(|&x| x.0 == *b).unwrap_or(&(ChessMove::default(), 0)).1;
+            if is_capture(board, a) && !is_capture(board, b){
+                return Ordering::Less;
+            }
+            else if !is_capture(board, a) && is_capture(board, b) {
+                return Ordering::Greater;
+            }
+            else if is_capture(board, a) && is_capture(board, b){
+                if a_score > b_score{
+                    return Ordering::Less;
+                }
+                else if a_score < b_score{
+                    return Ordering::Greater;
+                }
+                else{
+                    return Ordering::Equal;
+                }
+            }
+            else{
+                if a_score > b_score{
+                    return Ordering::Less;
+                }
+                else if a_score < b_score{
+                    return Ordering::Greater;
+                }
+                else{
+                    return Ordering::Equal;
+                }
+            }
+        });
+    }
+
     
     let mut time_spent = 0;
     let mut total_nodes = 0;
@@ -81,6 +119,10 @@ pub fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessM
     let mut total_transpositions_used = 0;
     let mut total_pawn_hash_table_used = 0;
     let mut total_pawn_hash_table_recorded = 0;
+    let mut checked_previous_best_move = false;
+    let mut bad_last_move = false;
+    let best_previous_move = best_previous.0;
+    let best_previous_score = best_previous.1;
 
     for chess_move in moves{
         let now = Instant::now();
@@ -88,6 +130,15 @@ pub fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessM
         let mut search_info = SearchInfo::new();
         let board_value = -pv_search(&passed_board, -beta, -alpha, depth, cachetable, &mut search_info, pawn_table, &mut pvline);
         
+        
+        if ! checked_previous_best_move && chess_move == best_previous_move.unwrap_or(ChessMove::default()){
+            if best_previous_score > board_value + 300{
+                bad_last_move = true;
+            }
+            checked_previous_best_move = true;
+        }
+
+
         total_nodes += search_info.nodes_searched;
         total_transpositions_recorded += search_info.transpostions_recorded;
         total_transpositions_used += search_info.transpostions_used;
@@ -122,7 +173,7 @@ pub fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessM
 
         let elapsed = now.elapsed();
         time_spent += elapsed.as_millis();
-        if best_score + 600 >= best_previous_score && time_spent > max_time{
+        if !bad_last_move && time_spent > max_time{
             println!("ended on time in depth {} ", depth);
             println!("found {}, last {}", best_score, best_previous_score);
             if best_score >= best_previous_score + 100{
@@ -171,8 +222,6 @@ fn late_move_reduction(board: &Board, chess_move: ChessMove, depth: u32) -> u32{
 pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut chess::CacheTable<Entry>, info: &mut SearchInfo, pawn_table: &mut chess::CacheTable<i32>, pvline: &mut Vec<ChessMove>) -> i32{
     let mut line:Vec<ChessMove> = Vec::new();
     let late_move_reduction_enabled = true;
-    let futility_pruning_enabled = false;
-    let razoring_enabled = false;
     
     info.nodes_searched += 1;
     let mut alpha = alpha;
@@ -207,49 +256,78 @@ pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut che
         }
     }
     
+    // if we reached the max depth then we'll return the score.
+    if depth <= 0 { 
+        pvline.clear();
+        return quiesce(board, alpha, beta, 6, info, pawn_table);
+    }
+
+
     let in_check = board.checkers().popcnt() > 0;
-    // null move pruning
+    // null move pruning 
     let null_pruning = true;
     if null_pruning && depth >= 3 && !in_check{
         if let Some(passed_board) = board.null_move(){
             let score =  -pv_search(&passed_board,-beta, -alpha, depth - 1, cache, info, pawn_table, &mut line);
             if score >= beta{
-                
                 return beta;
             }
         }
     }
+
+
+    let extend = 0;
+    let mut fprune = false;
+    let mut fmax = 9999;
+    
+
+    /* decide about limited razoring at the pre-pre-frontier nodes */
+    let board_balance = -evaluation::material_balance(board);
+    let mut fscore = board_balance + constants::RAZORING_MARGIN;
+    if extend != 0 && depth == 3 && fscore <= alpha
+        { fprune = true;  fmax = fscore; }
+    /* decide about extended futility pruning at pre-frontier nodes */
+    fscore = board_balance + constants::EXTENDED_FUTILITY_MARGIN;
+    if extend != 0 && depth == 2 && fscore <= alpha
+        { fprune = true; fmax = fscore; }
+    /* decide about selective futility pruning at frontier nodes */
+    fscore = board_balance + constants::FUTILITY_MARGIN;
+    if !in_check && depth == 1 && fscore <= alpha
+        { fprune = true; fmax = fscore; }
+ 
+
+    
+
+
         
-    if depth <= 3{
-        // razor pruning
-        let eval = evaluation::evaluate_rework(board) + pawn_table_lookup(board, pawn_table, info);
-        if razoring_enabled && !in_check && eval < alpha - 348 - 258 * depth as i32* depth as i32
-        {
-            let value = quiesce(board, alpha -1, alpha, 6, info, pawn_table);
-            if value < alpha{
-                return value;
-            }
-        }
+    // if depth <= 3{
+    //     // razor pruning
+    //     let eval = evaluation::evaluate_rework(board) + pawn_table_lookup(board, pawn_table, info);
+    //     if razoring_enabled && !in_check && eval < alpha - 348 - 258 * depth as i32* depth as i32
+    //     {
+    //         let value = quiesce(board, alpha -1, alpha, 6, info, pawn_table);
+    //         if value < alpha{
+    //             return value;
+    //         }
+    //     }
 
 
-        // futility pruning
-        let futility_margin =  -100;
-        if depth == 1 && futility_pruning_enabled && !in_check{
-            let score = quiesce(board, alpha -1, alpha, 1, info, pawn_table);
-            if score + futility_margin < alpha{
-                // save the score in the cache
-                cache.add(board.get_hash(), Entry{ depth, node_type: Nodetype::CutNode, score: alpha });
-                info.transpostions_recorded += 1;
+    //     // futility pruning
+    //     let futility_margin =  -100;
+    //     if depth == 1 && futility_pruning_enabled && !in_check{
+    //         let score = quiesce(board, alpha -1, alpha, 1, info, pawn_table);
+    //         if score + futility_margin < alpha{
+    //             // save the score in the cache
+    //             cache.add(board.get_hash(), Entry{ depth, node_type: Nodetype::CutNode, score: alpha });
+    //             info.transpostions_recorded += 1;
 
-                return alpha;
-            }
-        }
+    //             return alpha;
+    //         }
+    //     }
 
-        if depth <= 0 { 
-            pvline.clear();
-            return quiesce(board, alpha, beta, 6, info, pawn_table);
-        }
-    }
+    // }
+
+    
     
     
     let mut first_search_pv: bool  = true;
@@ -280,26 +358,26 @@ pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut che
     
     
 
-    // try to make a Futility pruning
+    // //try to make a Futility pruning
 
-    // let mut retry = false;
-    // if futility_pruning_enabled && depth == 1 && board.checkers().popcnt() == 0{
-    //     let eval = evaluation::evaluate_rework(board) + pawn_table_lookup(board, pawn_table, info);
-    //     let movegen = chess::MoveGen::new_legal(board);
-    //     for chess_move in movegen{
-    //         if is_capture(board, &chess_move) || is_check(board, &chess_move){
-    //             let passed_board = board.make_move_new(chess_move);
-    //             let val =  evaluation::evaluate_rework(&passed_board) + pawn_table_lookup(&passed_board, pawn_table, info);
-    //             if val > _alpha{
-    //                 retry = true;
-    //                 break;
-    //             }
-    //         }
-    //     } 
-    //     if !retry && eval - constants::FUTOLITY_MARGIN < _alpha{
-    //         return _alpha;
-    //     } 
-    // }
+    // //let mut retry = false;
+    // //if futility_pruning_enabled && depth == 1 && board.checkers().popcnt() == 0{
+    // //    let eval = evaluation::evaluate_rework(board) + pawn_table_lookup(board, pawn_table, info);
+    // //    let movegen = chess::MoveGen::new_legal(board);
+    // //    for chess_move in movegen{
+    // //        if is_capture(board, &chess_move) || is_check(board, &chess_move){
+    // //            let passed_board = board.make_move_new(chess_move);
+    // //            let val =  evaluation::evaluate_rework(&passed_board) + pawn_table_lookup(&passed_board, pawn_table, info);
+    // //            if val > _alpha{
+    // //                retry = true;
+    // //                break;
+    // //            }
+    // //        }
+    // //    } 
+    // //    if !retry && eval - constants::FUTOLITY_MARGIN < _alpha{
+    // //        return _alpha;
+    // //    } 
+    // //}
 
 
     let movegen = chess::MoveGen::new_legal(board);
@@ -344,10 +422,16 @@ pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut che
         if first_search_pv{
             score = -pv_search(&passed_board,-beta, -alpha, depth - 1, cache, info, pawn_table, &mut line);
         } else {
-            score = -zero_window_search(&passed_board, -alpha, depth - 1 - moves_to_reduce, info, cache, pawn_table);
-            // in fail-soft ... && score < beta ) is common
-            if  score > alpha {
-                score = -pv_search(&passed_board, -beta, -alpha, depth - 1, cache, info, pawn_table, &mut line); // re-search
+            if !fprune || is_check(board, &chess_move) || fmax + gain(&board, &chess_move) > alpha{
+                score = -zero_window_search(&passed_board, -alpha, depth - 1 - moves_to_reduce, info, cache, pawn_table);
+                // in fail-soft ... && score < beta ) is common
+                if  score > alpha {
+                    score = -pv_search(&passed_board, -beta, -alpha, depth - 1, cache, info, pawn_table, &mut line); // re-search
+                }
+
+            }else{
+                score = alpha - 1
+                // ? we pruned a node by the razoring, extended or normal futility pruning
             }
         }
         // the move is un-made because we created a copy of the board.
@@ -515,7 +599,7 @@ fn gain(board: &Board, chess_move: &ChessMove) -> i32{
 }
 
 
-fn pawn_table_lookup(board: &Board, pawn_table: &mut chess::CacheTable<i32>, info: &mut SearchInfo) -> i32{
+pub fn pawn_table_lookup(board: &Board, pawn_table: &mut chess::CacheTable<i32>, info: &mut SearchInfo) -> i32{
     let mut score = 0;
     let black_pawns = get_piece_type(board, Piece::Pawn,chess::Color::Black);
     let white_pawns = get_piece_type(board, Piece::Pawn,chess::Color::White);

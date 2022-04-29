@@ -8,12 +8,16 @@ pub const BISHOP_VAL: Score = (330, 330);
 pub const KNIGHT_VAL: Score = (320, 320);
 pub const PAWN_VAL: Score = (100, 110);
 
-pub const FUTOLITY_MARGIN: i32 = 120; 
 pub const BISHOP_PAIR: Score = (50, 50);
 pub const ROOK_ON_OPEN_FILE: Score = (10, 10);
 pub const ROOK_ON_HALF_OPEN_FILE: Score = (5, 5);
 pub const TEMPO_BONUS: Score = (20, 10);
 
+// pruning margins
+
+pub const RAZORING_MARGIN: i32 = 910; 
+pub const EXTENDED_FUTILITY_MARGIN: i32 = 510;
+pub const FUTILITY_MARGIN: i32 = 350; 
 // pawns
 pub const DOUBLED_PAWNS_DEBUFF: Score = (-50, -60);
 pub const ISOLATED_PAWNS_DEBUFF: Score = (-10, -20);
