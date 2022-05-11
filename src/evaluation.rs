@@ -1,6 +1,7 @@
-use std::borrow::BorrowMut;
 use std::ops::BitAnd;
 use std::ops::BitOr;
+use std::ops::BitXor;
+use std::ops::Not;
 use crate::bitboard_operators;
 use crate::bitboard_operators::black_passed_pawns;
 use crate::bitboard_operators::white_front_spans;
@@ -12,6 +13,7 @@ use crate::constants::KING_ENDGAME_TABLE;
 use crate::constants::KING_SQUARES_TABLE;
 use crate::utils;
 use crate::bitboard_operators::{open_files, black_pawns_behind_own, white_pawns_behind_own, king_attacks, black_front_spans, file_fill, half_open_files};
+use crate::utils::distance;
 use crate::utils::{get_piece_type, sum_by_table};
 use chess::BitBoard;
 use chess::Color;
@@ -311,6 +313,11 @@ pub fn evaluate_rework(board: &chess::Board) -> i32{
                                     pieces_attacking_black_king_units += 1;
                                     
                                 }
+
+                                // get the squares that are attacked by the bishop
+                                let bishop_rays = chess::get_bishop_rays(square);
+                                let mobility = bishop_rays.bitxor(board.combined()).bitand(bishop_rays) .popcnt();
+                                cur_score += (mobility as i32 - 6) * constants::BISHOP_MOBILITY_VAL.access_endgame(endgame);
                             }else{
                                 cur_score += constants::BISHOP_SQUARES_TABLE_BLACK[square.to_index()];
 
@@ -320,6 +327,11 @@ pub fn evaluate_rework(board: &chess::Board) -> i32{
                                         pieces_attacking_white_king_units += 1;
                                     
                                 }
+
+                                // get the squares that are attacked by the bishop
+                                let bishop_rays = chess::get_bishop_rays(square);
+                                let mobility = bishop_rays.bitxor(board.combined()).bitand(bishop_rays) .popcnt();
+                                cur_score += (mobility as i32 - 6) * constants::BISHOP_MOBILITY_VAL.access_endgame(endgame);
                             }
                             
                         },
@@ -345,6 +357,10 @@ pub fn evaluate_rework(board: &chess::Board) -> i32{
                         Piece::Knight=>{
                             cur_score += constants::KNIGHT_VAL.access_endgame(endgame);
                             
+                            // get the squares that the knight is attacking
+                            let knight_attacks = chess::get_knight_moves(square);
+
+
                             if color == Color::White{
                                 cur_score += constants::KNIGHT_SQUARES_TABLE[square.to_index()];
                                 // check if the knight is attacking the king
@@ -353,6 +369,10 @@ pub fn evaluate_rework(board: &chess::Board) -> i32{
                                     pieces_attacking_black_king_units += 1;
                                 }
 
+                                // get the squares that the knight is attacking
+                                let mobility = knight_attacks.bitxor(board.combined()).bitand(knight_attacks).popcnt();
+                                cur_score += (mobility as i32 - 4) * constants::KNIGHT_MOBILITY_VAL.access_endgame(endgame) ;
+
                             }else{
                                 cur_score += constants::KNIGHT_SQUARES_TABLE_BLACK[square.to_index()];
                                 // check if the knight is attacking the king
@@ -360,6 +380,10 @@ pub fn evaluate_rework(board: &chess::Board) -> i32{
                                     pieces_attacking_white_king += 1;
                                     pieces_attacking_white_king_units += 1;
                                 }
+
+                                // get the squares that the knight is attacking
+                                let mobility = knight_attacks.bitxor(board.combined()).bitand(knight_attacks).popcnt();
+                                cur_score += (mobility as i32 - 4) * constants::KNIGHT_MOBILITY_VAL.access_endgame(endgame) ;
                             }
 
                             if let Some(color) = piece_color{
@@ -394,6 +418,10 @@ pub fn evaluate_rework(board: &chess::Board) -> i32{
                                     pieces_attacking_black_king_units += 2;
                                 }
 
+                                // get the squares that the rook is attacking
+                                let rook_squares = chess::get_rook_rays(square);
+                                let mobility = rook_squares.bitxor(board.combined()).bitand(rook_squares).popcnt();
+                                cur_score += (mobility as i32 - 7) * constants::ROOK_MOBILITY_VAL.access_endgame(endgame);
                             }else{
                                 cur_score += constants::ROOK_SQUARES_TABLE[utils::mirror_square(&square).to_index()];
                                 // check if the rook is attacking the king
@@ -401,6 +429,11 @@ pub fn evaluate_rework(board: &chess::Board) -> i32{
                                     pieces_attacking_white_king += 1;
                                     pieces_attacking_white_king_units += 2;
                                 }
+
+                                // get the squares that the rook is attacking
+                                let rook_squares = chess::get_rook_rays(square);
+                                let mobility = rook_squares.bitxor(board.combined()).bitand(rook_squares).popcnt();
+                                cur_score += (mobility as i32 - 7) * constants::ROOK_MOBILITY_VAL.access_endgame(endgame);
                             }
 
                         },
@@ -482,6 +515,17 @@ pub fn evaluate_rework(board: &chess::Board) -> i32{
                                     
                                 }
 
+                                // add bonus for queen mobility
+                                // distance from king in ranks
+                                let king_rank = black_king.get_rank();
+                                let queen_rank = square.get_rank();
+                                let rank_diff = (king_rank.to_index() as i32 - queen_rank.to_index() as i32).abs();
+                                // distance from king in files
+                                let king_file = black_king.get_file();
+                                let queen_file = square.get_file();
+                                let file_diff = (king_file.to_index() as i32 - queen_file.to_index() as i32).abs();
+                                cur_score += 10 - rank_diff as i32 - file_diff as i32;
+
                             }else{
                                 cur_score += constants::QUEEN_SQUARES_TABLE_BLACK[square.to_index()];
                                 if chess::get_rook_rays(square).bitor(chess::get_bishop_rays(square)).bitand(white_king_zone).popcnt() > 0{
@@ -491,6 +535,17 @@ pub fn evaluate_rework(board: &chess::Board) -> i32{
                                     pieces_attacking_white_king_units += 4;
                                     
                                 }
+                            
+                                // add bonus for queen mobility
+                                // distance from king in ranks
+                                let king_rank = white_king.get_rank();
+                                let queen_rank = square.get_rank();
+                                let rank_diff = (king_rank.to_index() as i32 - queen_rank.to_index() as i32).abs();
+                                // distance from king in files
+                                let king_file = white_king.get_file();
+                                let queen_file = square.get_file();
+                                let file_diff = (king_file.to_index() as i32 - queen_file.to_index() as i32).abs();
+                                cur_score += 10 - rank_diff as i32 - file_diff as i32;
                             }
                         },
                     }
@@ -515,12 +570,27 @@ pub fn evaluate_rework(board: &chess::Board) -> i32{
     // give bonus to rook on open file
     let white_rooks = get_piece_type(&board, chess::Piece::Rook, chess::Color::White);
     let black_rooks = get_piece_type(&board, chess::Piece::Rook, chess::Color::Black);
-    let white_rooks_on_open_file = constants::ROOK_ON_OPEN_FILE.access_endgame(endgame) as u32 * white_rooks.bitand(open_files(white_pawns, black_pawns)).popcnt();
-    let black_rooks_on_open_file = constants::ROOK_ON_OPEN_FILE.access_endgame(endgame) as u32 * black_rooks.bitand(open_files(white_pawns, black_pawns)).popcnt();
+    
+    let white_rooks_on_open_file = white_rooks.bitand(open_files(white_pawns, black_pawns));
+    let white_rooks_on_open_file_bonus = constants::ROOK_ON_OPEN_FILE.access_endgame(endgame) as u32 * white_rooks_on_open_file.popcnt();
+    
+    let black_rooks_on_open_file = black_rooks.bitand(open_files(white_pawns, black_pawns));
+    let black_rooks_on_open_file_bonus = constants::ROOK_ON_OPEN_FILE.access_endgame(endgame) as u32 * black_rooks_on_open_file.popcnt();
+
+    // if the rook is on open file and attacking the king, give bonus
+    let white_rooks_attacking_open_king_zone = file_fill(white_rooks_on_open_file) & black_king_zone;
+    let black_rooks_attacking_open_king_zone = file_fill(black_rooks_on_open_file) & white_king_zone;
 
     // give bonus to rook on half-open file
-    let white_rooks_on_half_open_file = constants::ROOK_ON_HALF_OPEN_FILE.access_endgame(endgame) as u32 * white_rooks.bitand(half_open_files(white_pawns)).popcnt();
-    let black_rooks_on_half_open_file = constants::ROOK_ON_HALF_OPEN_FILE.access_endgame(endgame) as u32 * black_rooks.bitand(half_open_files(black_pawns)).popcnt();
+    let white_rooks_on_half_open_file = white_rooks.bitand(half_open_files(white_pawns));
+    let white_rooks_on_half_open_file_bonus = constants::ROOK_ON_HALF_OPEN_FILE.access_endgame(endgame) as u32 * white_rooks_on_half_open_file.popcnt();
+    let black_rooks_on_half_open_file = black_rooks.bitand(half_open_files(black_pawns));
+    let black_rooks_on_half_open_file_bonus = constants::ROOK_ON_HALF_OPEN_FILE.access_endgame(endgame) as u32 * black_rooks_on_half_open_file.popcnt();
+
+    // if the rook is on half-open file and attacking the king, give bonus
+    let white_rooks_attacking_half_open_king_zone = file_fill(white_rooks_on_half_open_file) & black_king_zone;
+    let black_rooks_attacking_half_open_king_zone = file_fill(black_rooks_on_half_open_file) & white_king_zone;
+
 
     // Give bonus to bishop pair
     let white_bishops = get_piece_type(&board, chess::Piece::Bishop, chess::Color::White);
@@ -528,12 +598,66 @@ pub fn evaluate_rework(board: &chess::Board) -> i32{
     let white_bishop_pair = constants::BISHOP_PAIR.access_endgame(endgame) as u32 * white_bishops.popcnt() / 2;
     let black_bishop_pair = constants::BISHOP_PAIR.access_endgame(endgame) as u32 * black_bishops.popcnt() / 2;
 
-    total_black_score += black_rooks_on_open_file as i32 + black_rooks_on_half_open_file as i32 + black_bishop_pair as i32 + black_blocked as i32;
-    total_white_score += white_rooks_on_open_file as i32 + white_rooks_on_half_open_file as i32 + white_bishop_pair as i32 + white_blocked as i32;
+    total_black_score += black_rooks_on_open_file_bonus as i32 + black_rooks_on_half_open_file_bonus as i32 + black_bishop_pair as i32 + black_blocked as i32;
+    total_white_score += white_rooks_on_open_file_bonus as i32 + white_rooks_on_half_open_file_bonus as i32 + white_bishop_pair as i32 + white_blocked as i32;
     
+    total_black_score += black_rooks_attacking_open_king_zone.popcnt() as i32 * constants::ROOK_ATTACKING_OPEN_KING_ZONE.access_endgame(endgame) as i32;
+    total_white_score += white_rooks_attacking_open_king_zone.popcnt() as i32 * constants::ROOK_ATTACKING_OPEN_KING_ZONE.access_endgame(endgame) as i32;
+    total_black_score += black_rooks_attacking_half_open_king_zone.popcnt() as i32 * constants::ROOK_ATTACKING_HALF_OPEN_KING_ZONE.access_endgame(endgame) as i32;
+    total_white_score += white_rooks_attacking_half_open_king_zone.popcnt() as i32 * constants::ROOK_ATTACKING_HALF_OPEN_KING_ZONE.access_endgame(endgame) as i32;
+
+
     // pieces attacking the other king 
     total_black_score += (-20. * pieces_attacking_black_king_units as f32 * constants::PIECES_ATTACKING_KING[pieces_attacking_black_king]) as i32;
     total_white_score += (-20. * pieces_attacking_white_king_units as f32 * constants::PIECES_ATTACKING_KING[pieces_attacking_white_king]) as i32;
+
+
+    // passed pawns endgame evaluation
+    let mut black_passed_pawns_value = 0;
+    let mut white_passed_pawns_value = 0;
+    if endgame {
+        let black_passed_pawns = black_passed_pawns(black_pawns, white_pawns);
+        let black_pieces = board.color_combined(chess::Color::Black);
+        let white_pieces = board.color_combined(chess::Color::White);
+        let black_has_no_pieces = ((black_pieces & black_pawns.not()) & BitBoard::from_square(black_king).not()).popcnt() == 0;
+        let white_has_no_pieces = ((white_pieces & white_pawns.not()) & BitBoard::from_square(white_king).not()).popcnt() == 0;
+        for black_pawn in black_passed_pawns{
+            let kings_distance = 20 * utils::distance(white_king, black_pawn) - 5 * utils::distance(black_king, black_pawn);
+            let promotion_square = chess::Square::make_square(chess::Rank::First ,black_pawn.get_file());
+            let mut unstoppable_pawn = 0;
+            if white_has_no_pieces{
+                // check if there is no friendly piece on the square infront of the pawn
+                if (black_pieces & BitBoard::from_maybe_square(black_pawn.forward(chess::Color::Black)).unwrap()).popcnt() == 0{
+                    if distance(black_pawn, promotion_square) < distance(white_king, promotion_square){
+                    
+                        unstoppable_pawn = constants::UNSTOPPABLE_PAWN.access_endgame(endgame);
+                    }
+                }
+            }
+            black_passed_pawns_value += 20 + ((120 + kings_distance + unstoppable_pawn) as f32 * constants::PASSED_PAWNS_BLACK_OPENING[black_pawn.get_rank().to_index()]) as i32;
+        } 
+        total_black_score += black_passed_pawns_value;
+        let white_passed_pawns = white_passed_pawns(white_pawns, black_pawns);
+        
+        for white_pawn in white_passed_pawns{
+            let kings_distance = 20 * utils::distance(black_king, white_pawn) - 5 * utils::distance(white_king, white_pawn);
+            let promotion_square = chess::Square::make_square(chess::Rank::Eighth ,white_pawn.get_file());
+            let mut unstoppable_pawn = 0;
+            if black_has_no_pieces{
+                // check if there is no friendly piece on the square infront of the pawn
+                if (white_pieces & BitBoard::from_maybe_square(white_pawn.forward(chess::Color::White)).unwrap()).popcnt() == 0{
+                    if distance(white_pawn, promotion_square) < distance(black_king, promotion_square){
+                        unstoppable_pawn = constants::UNSTOPPABLE_PAWN.access_endgame(endgame);
+                    }
+                }
+            }   
+
+            white_passed_pawns_value += 20 + ((120 + kings_distance + unstoppable_pawn) as f32 * constants::PASSED_PAWNS_WHITE_OPENING[white_pawn.get_rank().to_index()]) as i32;
+        }
+        total_white_score += white_passed_pawns_value;
+    }
+
+
 
 
     match board.side_to_move(){
@@ -596,22 +720,17 @@ pub fn evaluate_pawn_structure(black_pawns: BitBoard, white_pawns: BitBoard, end
     let black_backward_pawns = bitboard_operators::white_backward(white_pawns, black_pawns).popcnt() as i32 * constants::BACKWARD_PAWNS_DEBUFF.access_endgame(endgame);
     let white_backward_pawns = bitboard_operators::white_backward(white_pawns, black_pawns).popcnt() as i32 * constants::BACKWARD_PAWNS_DEBUFF.access_endgame(endgame);
 
+    // TODO: evaluate candidate passed pawns
+    // let black_candidate_passed_pawns = bitboard_operators::candidate_passed_pawns(black_pawns, white_pawns).popcnt() as i32 * constants::CANDIDATE_PASSED_PAWNS_DEBUFF.access_endgame(endgame);
+    // let white_candidate_passed_pawns = bitboard_operators::candidate_passed_pawns(white_pawns, black_pawns).popcnt() as i32 * constants::CANDIDATE_PASSED_PAWNS_DEBUFF.access_endgame(endgame);
+
 
     // evaluate passed pawns
     let mut white_passed_pawns_value = 0;
     let mut black_passed_pawns_value = 0;
     if endgame{
-        let black_passed_pawns = black_passed_pawns(black_pawns, white_pawns);
-        
-        for black_pawn in black_passed_pawns{
-            black_passed_pawns_value += constants::PASSED_PAWNS_BLACK[black_pawn.get_rank().to_index()]
-        } 
+        // ? if endgame is true, then we have to evaluate passed pawns differently with respect to the kings
 
-        let white_passed_pawns = white_passed_pawns(white_pawns, black_pawns);
-        
-        for white_pawn in white_passed_pawns{
-            white_passed_pawns_value += constants::PASSED_PAWNS_WHITE[white_pawn.get_rank().to_index()]
-        } 
 
     }else{
         let black_passed_pawns = black_passed_pawns(black_pawns, white_pawns);
@@ -692,17 +811,17 @@ pub fn material_balance(board: &chess::Board) -> i32{
             }
         }
     }
-    match board.side_to_move(){
-        chess::Color::White => {
-            score += white_material - black_material;
-        },
-        chess::Color::Black => {
-            score -= white_material - black_material;
+        match board.side_to_move(){
+            chess::Color::White => {
+                score += white_material - black_material;
+            },
+            chess::Color::Black => {
+                score -= white_material - black_material;
+            }
         }
-    }
-    
     score
 }
+
 
 
 // fn get_smallest_attacker(board: &chess::Board, square: Square, side: chess::Color) -> chess::Piece{

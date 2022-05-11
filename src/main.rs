@@ -4,7 +4,7 @@ pub mod utils;
 pub mod opening;
 pub mod bitboard_operators;
 pub mod search;
-use std::io::{Write};
+use std::io::{Write, Read};
 
 use std::{io::{self}};
 use chess::{self, ChessMove, Board, Game};
@@ -108,14 +108,14 @@ fn play_random_move(board: chess::Board) -> Option<chess::ChessMove> {
 
 fn play_bot_move( board: chess::Board, depth: u32, book_moves: u32, remaining_time: u128) -> ChessMove{
     if book_moves > 0{
-        let file = std::fs::File::open("C:\\Users\\משתמש\\Documents\\projects\\RustChess\\target\\release\\performance.bin").unwrap(); 
+        let file = std::fs::File::open("C:\\Users\\משתמש\\Documents\\projects\\RustChess\\target\\release\\book.bin").unwrap(); 
         let book = opening::read_polyglot_book(file).unwrap();
         // print the first few entrys of the book
-        println!("{:#?}", &book.iter().take(20).collect::<Vec<_>>());
+        // println!("{:#?}", &book.iter().take(20).collect::<Vec<_>>());
 
         match book.get(&board.get_hash()) {
             None=>{
-                println!("no book entry found for this position {}", board.get_hash());
+                // println!("no book entry found for this position {}", board.get_hash());
             },
             Some(moves)=>{
                 // choose a random move from the book
@@ -124,12 +124,11 @@ fn play_bot_move( board: chess::Board, depth: u32, book_moves: u32, remaining_ti
                 let move_ = moves[index];
                 println!("book move found {:#?}", move_);
                 let mut s = String::new();
-                s.push(opening::FILE_NAMES[move_.move_.start_file() as usize]);
-                s.push(opening::RANK_NAMES[move_.move_.start_row() as usize]);
                 s.push(opening::FILE_NAMES[move_.move_.end_file() as usize]);
                 s.push(opening::RANK_NAMES[move_.move_.end_row() as usize]);
-
-                println!("{}", s);
+                s.push(opening::FILE_NAMES[move_.move_.start_file() as usize]);
+                s.push(opening::RANK_NAMES[move_.move_.start_row() as usize]);
+                // println!("{}", s);
                 match move_.move_.promotion_piece() {
                     Some(opening::PromotionPiece::Knight) => s.push('n'),
                     Some(opening::PromotionPiece::Bishop) => s.push('b'),
@@ -448,7 +447,66 @@ fn main() {
 
 
     if debug{
+        // 2r5/2q4k/8/8/2K5/8/8/8 w - - 0 1
+        // 8/8/8/5k2/8/8/K4Q2/5R2 b - - 0 1
+        let b = &Board::from_str("k7/7Q/8/8/8/8/7q/1K6 w - - 0 1").unwrap();
+        let score = evaluation::evaluate_rework(b);
+        println!("{}", score);
+        // // let b = Board::from_str("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1").ok().expect("invalid position");
+        // // opening::write_entrys();
+
+        // // check how many bytes were written
+        // // let mut buffer = vec![0; 80];
+        // let file = std::fs::File::open("test.bin").unwrap(); 
+        // // file.read_to_end(&mut buffer).unwrap();
+        // // println!("{:?}", buffer);
         
+
+        // let book = opening::read_polyglot_book(file).unwrap();
+        // // print the first few entrys of the book
+        // println!("{:#?}", &book.iter().take(1).collect::<Vec<_>>());
+
+        // match book.get(&b.get_hash()) {
+        //     None=>{
+        //         println!("no book entry found for this position {}", b.get_hash());
+        //     },
+        //     Some(moves)=>{
+        //         // choose a random move from the book
+        //         let mut rng = rand::thread_rng();
+        //         let index = rng.gen_range(0..moves.len());
+        //         let move_ = moves[index];
+        //         println!("book move found {:#?}", move_);
+        //         let mut s = String::new();
+        //         s.push(opening::FILE_NAMES[move_.move_.end_file() as usize]);
+        //         s.push(opening::RANK_NAMES[move_.move_.end_row() as usize]);
+        //         s.push(opening::FILE_NAMES[move_.move_.start_file() as usize]);
+        //         s.push(opening::RANK_NAMES[move_.move_.start_row() as usize]);
+
+        //         // println!("{}", s);
+        //         match move_.move_.promotion_piece() {
+        //             Some(opening::PromotionPiece::Knight) => s.push('n'),
+        //             Some(opening::PromotionPiece::Bishop) => s.push('b'),
+        //             Some(opening::PromotionPiece::Rook) => s.push('r'),
+        //             Some(opening::PromotionPiece::Queen) => s.push('q'),
+        //             None => {}
+        //         }
+                
+        //         println!("{:?}", ChessMove::from_str(s.as_str()).unwrap());
+
+
+        //     }
+        // }
+
+        
+        
+
+
+
+
+
+
+
+
         // let mut s=String::new();
         // while s != "exit" {
         //     print!("Please enter some text: ");
@@ -463,12 +521,12 @@ fn main() {
         //     run_test_position(s.as_str(), 10*60*1000)
         // };
         
-        let mut pawn_table = chess::CacheTable::new(65536,  0);
-        check_eval("rnbqkb1r/ppp1pppp/5n2/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR w KQkq - 1 3", &mut pawn_table);
-        check_eval("rnbqkbnr/ppp1pppp/8/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR b KQkq - 0 2", &mut pawn_table);
-        check_eval("rnbqkb1r/ppp1pppp/5n2/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR w KQkq - 1 3", &mut pawn_table);
-        check_eval("rnbqkbnr/ppp1pppp/8/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR b KQkq - 0 2", &mut pawn_table);
-        check_eval("rnbqkb1r/ppp1pppp/5n2/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR w KQkq - 1 3", &mut pawn_table);
+        // let mut pawn_table = chess::CacheTable::new(65536,  0);
+        // check_eval("rnbqkb1r/ppp1pppp/5n2/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR w KQkq - 1 3", &mut pawn_table);
+        // check_eval("rnbqkbnr/ppp1pppp/8/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR b KQkq - 0 2", &mut pawn_table);
+        // check_eval("rnbqkb1r/ppp1pppp/5n2/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR w KQkq - 1 3", &mut pawn_table);
+        // check_eval("rnbqkbnr/ppp1pppp/8/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR b KQkq - 0 2", &mut pawn_table);
+        // check_eval("rnbqkb1r/ppp1pppp/5n2/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR w KQkq - 1 3", &mut pawn_table);
 
 
         // run_test_position("rnbqkb1r/p3pppp/1p6/2ppP3/3N4/2P5/PPP1QPPP/R1B1KB1R w KQkq -", 10*60*1000);

@@ -11,7 +11,14 @@ pub const PAWN_VAL: Score = (100, 110);
 pub const BISHOP_PAIR: Score = (50, 50);
 pub const ROOK_ON_OPEN_FILE: Score = (10, 10);
 pub const ROOK_ON_HALF_OPEN_FILE: Score = (5, 5);
+pub const ROOK_ATTACKING_OPEN_KING_ZONE: Score = (20, 10);
+pub const ROOK_ATTACKING_HALF_OPEN_KING_ZONE: Score = (10, 0);
 pub const TEMPO_BONUS: Score = (20, 10);
+
+// mobility values
+pub const KNIGHT_MOBILITY_VAL: Score = (4, 4);
+pub const BISHOP_MOBILITY_VAL: Score = (5, 5);
+pub const ROOK_MOBILITY_VAL: Score = (2, 4);
 
 // pruning margins
 
@@ -22,6 +29,7 @@ pub const FUTILITY_MARGIN: i32 = 350;
 pub const DOUBLED_PAWNS_DEBUFF: Score = (-50, -60);
 pub const ISOLATED_PAWNS_DEBUFF: Score = (-10, -20);
 pub const BACKWARD_PAWNS_DEBUFF: Score = (-8, -10);
+pub const UNSTOPPABLE_PAWN: Score = (0, 800);
 
 
 pub trait Access{

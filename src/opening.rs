@@ -4,6 +4,7 @@ use std::fs;
 use std::fmt::{self, Debug, Formatter};
 use std::io::{self, Read};
 use std::collections::HashMap;
+use std::str::FromStr;
 
 pub const FILE_NAMES: &'static [char]  = &['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 pub const RANK_NAMES: &'static [char]  = &['1', '2', '3', '4', '5', '6', '7', '8'];
@@ -30,6 +31,10 @@ pub struct PolyglotEntry {
 }
 
 impl Move {
+    pub fn value(&self) -> u16 {
+        self.0
+    }
+
     pub fn end_file(&self) -> u8 {
         (self.0 & 0b111) as u8
     }
@@ -66,24 +71,78 @@ impl Move {
 
 
 }
+pub fn convert_str_to_move(s: &str) -> Move {
+    let mut move_ = Move(0);
+    let mut i = 0;
+    for c in s.chars() {
+        match c {
+            'a'..='h' => {
+                move_.0 |= ((c as u8 - 'a' as u8) as u16) << (i * 3);
+                // println!("{:b}", (c as u8 - 'a' as u8) as u16);
+                },
+            '1'..='8' => {
+                move_.0 |= ((c as u8 - '1' as u8) as u16) << (i * 3);
+                // println!("{:b}", (c as u8 - '1' as u8) as u16);
+            },
+            'N' => move_.0 |= 0b0001_0000_0000_0000,
+            'B' => move_.0 |= 0b0010_0000_0000_0000,
+            'R' => move_.0 |= 0b0100_0000_0000_0000,
+            'Q' => move_.0 |= 0b1000_0000_0000_0000,
+            _ => panic!("invalid move"),
+        }
+        i += 1;
+        // println!("{:b}", move_.0);
+    }
+    move_
+}
 
-pub fn convert_move_to_str(move_: Move)-> String {
-    
+pub unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
+    ::std::slice::from_raw_parts(
+        (p as *const T) as *const u8,
+        ::std::mem::size_of::<T>(),
+    )
+}
+
+pub fn convert_move_to_str(move_: Move) -> String {
     let mut s = String::new();
-    s.push(FILE_NAMES[move_.start_file() as usize]);
-    s.push((move_.start_row() + 1) as char);
     s.push(FILE_NAMES[move_.end_file() as usize]);
-    s.push((move_.end_row() + 1)as char);
+    s.push(RANK_NAMES[move_.end_row() as usize]);
+    s.push(FILE_NAMES[move_.start_file() as usize]);
+    s.push(RANK_NAMES[move_.start_row() as usize]);
+    
+
+    // println!("{}", s);
     match move_.promotion_piece() {
         Some(PromotionPiece::Knight) => s.push('n'),
+        Some(PromotionPiece::Queen) => s.push('q'),
         Some(PromotionPiece::Bishop) => s.push('b'),
         Some(PromotionPiece::Rook) => s.push('r'),
-        Some(PromotionPiece::Queen) => s.push('q'),
         None => {}
     }
-    s
     
+    s
 }
+        
+
+
+
+// pub fn convert_move_to_str(move_: Move)-> String {
+    
+//     let mut s = String::new();
+//     s.push(FILE_NAMES[move_.start_file() as usize]);
+//     s.push((move_.start_row() + 1) as char);
+//     s.push(FILE_NAMES[move_.end_file() as usize]);
+//     s.push((move_.end_row() + 1)as char);
+//     match move_.promotion_piece() {
+//         Some(PromotionPiece::Knight) => s.push('n'),
+//         Some(PromotionPiece::Bishop) => s.push('b'),
+//         Some(PromotionPiece::Rook) => s.push('r'),
+//         Some(PromotionPiece::Queen) => s.push('q'),
+//         None => {}
+//     }
+//     s
+    
+// }
 
 
 
@@ -138,6 +197,71 @@ pub fn read_polyglot_book<R: Read>(mut reader: R) -> io::Result<HashMap<u64, Vec
             }
         }
     }
+}
+
+
+pub fn write_entry<W: std::io::Write>(mut writer: W, entry: &PolyglotEntry) -> io::Result<()> {
+
+    let bytes = &entry.key.to_be_bytes();
+    writer.write_all(bytes).unwrap();
+    
+    let bytes = &entry.move_.value().to_be_bytes();
+    writer.write_all(bytes).unwrap();
+    
+    let bytes = &entry.weight.to_be_bytes();
+    writer.write_all(bytes).unwrap();
+    
+    let bytes = &entry.learn.to_be_bytes();
+    writer.write_all(bytes).unwrap();
+    // flush the buffer
+    writer.flush().unwrap();
+    return Ok(());
+}
+
+pub fn write_entrys(){
+    let path = "C:\\Users\\משתמש\\Documents\\projects\\ChessAi\\ChessAi\\book.txt";
+    let contents = fs::read_to_string(path)
+    .expect("Something went wrong reading the file");
+    // create a new file
+    let _ = std::fs::File::create("book.bin").expect("Something went wrong opening the file");
+    
+    let file = std::fs::OpenOptions::new()
+    .write(true)
+    .append(true)
+    .open("book.bin")
+    .unwrap();
+    let mut writer = std::io::BufWriter::new(file);
+
+    let splited_lines = contents.split("\n");
+    for line in splited_lines {
+        let parts = line.split(";");
+        let converted = parts.collect::<Vec<&str>>();
+        let b = Board::from_str(converted[0]).unwrap();
+        let moves: Vec<&str> = converted[1].split(" ").collect();
+        
+        for m in moves {
+            // make a polyglot entry
+            println!("{}", m);
+            match chess::ChessMove::from_san(&b, m){
+                Ok(m) => {
+                    let entry = PolyglotEntry{
+                        key: b.get_hash(),
+                        move_: convert_str_to_move(m.to_string().as_str()),
+                        weight: 0,
+                        learn: 0,
+                    };
+                    // write the entry
+                    write_entry(&mut writer, &entry).unwrap();
+                }
+                Err(e) => {
+                    println!("{} - {}", m, e);
+                }
+            
+            }
+        }
+
+    }
+
 }
 
 
