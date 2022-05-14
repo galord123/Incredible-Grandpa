@@ -252,7 +252,8 @@ pub fn evaluate(board: &chess::Board) -> i32{
 }
 
 
-pub fn evaluate_rework(board: &chess::Board) -> i32{
+pub fn evaluate_rework(game: &chess::Game) -> i32{
+    let board = game.current_position();
     let status = board.status();
     if status == chess::BoardStatus::Checkmate{
         match board.side_to_move(){
@@ -263,7 +264,7 @@ pub fn evaluate_rework(board: &chess::Board) -> i32{
                 return -9999;
             }
         }
-    }else if status == chess::BoardStatus::Stalemate{
+    }else if game.can_declare_draw(){
         return 0;
     }
     
@@ -565,7 +566,7 @@ pub fn evaluate_rework(board: &chess::Board) -> i32{
     }
 
     // handle blocked bisops and rooks
-    let (white_blocked, black_blocked) = handle_blocked_pieces(board, black_king, white_king);
+    let (white_blocked, black_blocked) = handle_blocked_pieces(&board, black_king, white_king);
 
     // give bonus to rook on open file
     let white_rooks = get_piece_type(&board, chess::Piece::Rook, chess::Color::White);

@@ -15,7 +15,7 @@ use std::{time::Instant, str::FromStr};
 use crate::{search::SearchInfo, search::Entry};
 
 
-fn iterative_deepening(board: &Board, remaining_time: u128, depth: u32) -> (Option<chess::ChessMove>, SearchInfo){
+fn iterative_deepening(game: &chess::Game, remaining_time: u128, depth: u32) -> (Option<chess::ChessMove>, SearchInfo){
     let mut table: Option<Vec<(ChessMove, i32)>> = None;
     let mut best_move:Option<chess::ChessMove> = None;
     let mut best_score = -9999; 
@@ -36,7 +36,7 @@ fn iterative_deepening(board: &Board, remaining_time: u128, depth: u32) -> (Opti
         let now = Instant::now();
         let time_left = allowed_time - total_time.min(allowed_time);
         
-        let result = search::search_depth(&board, _depth, &table, time_left, (best_move, best_score), &mut cachetable, &mut pawn_table);
+        let result = search::search_depth(&game, _depth, &table, time_left, (best_move, best_score), &mut cachetable, &mut pawn_table);
         if result.0.is_none() || result.4{
             println!("time took {}", total_time);
             println!("evaluated {} positions. {} transpostions recorded and {} used", info.nodes_searched, info.transpostions_recorded, info.transpostions_used);
@@ -75,8 +75,8 @@ fn iterative_deepening(board: &Board, remaining_time: u128, depth: u32) -> (Opti
 }
 
 
-fn choose_move(board: chess::Board, depth: u32, remaining_time: u128) -> (Option<chess::ChessMove>, SearchInfo){
-    let count = chess::MoveGen::new_legal(&board);
+fn choose_move(game: &chess::Game, depth: u32, remaining_time: u128) -> (Option<chess::ChessMove>, SearchInfo){
+    let count = chess::MoveGen::new_legal(&game.current_position());
     let moves: Vec<ChessMove> = count.collect();
     if moves.len() == 1{
         for chess_move in moves{
@@ -84,7 +84,7 @@ fn choose_move(board: chess::Board, depth: u32, remaining_time: u128) -> (Option
         }
     }
 
-    let (best_move, info) = iterative_deepening(&board, remaining_time, depth);
+    let (best_move, info) = iterative_deepening(&game, remaining_time, depth);
     
     if let Some(chess_move) = best_move {
         
@@ -106,7 +106,8 @@ fn play_random_move(board: chess::Board) -> Option<chess::ChessMove> {
 }
 
 
-fn play_bot_move( board: chess::Board, depth: u32, book_moves: u32, remaining_time: u128) -> ChessMove{
+fn play_bot_move( game: &chess::Game, depth: u32, book_moves: u32, remaining_time: u128) -> ChessMove{
+    let board = game.current_position();
     if book_moves > 0{
         let file = std::fs::File::open("C:\\Users\\משתמש\\Documents\\projects\\RustChess\\target\\release\\book.bin").unwrap(); 
         let book = opening::read_polyglot_book(file).unwrap();
@@ -144,7 +145,7 @@ fn play_bot_move( board: chess::Board, depth: u32, book_moves: u32, remaining_ti
         }
     }
     
-    match choose_move(board, depth, remaining_time).0{
+    match choose_move(game, depth, remaining_time).0{
         None=>{return play_random_move(board).expect("error_board has no moves")},
         Some(chess_move)=>{
             return chess_move;
@@ -173,20 +174,20 @@ fn play_game(starting_position: Option<String>, verbose: bool, bot_white: bool, 
     while game.result().is_none()
     {
         move_count += 1;
-        let board = game.current_position();
+        // let board = game.current_position();
         let now = Instant::now();
-        match board.side_to_move(){
+        match game.side_to_move(){
             chess::Color::White=>{
                 if verbose{
                     println!("White");
                 }
                 if bot_white{
-                    game.make_move(play_bot_move(board, depth, book_moves, 4*60*1000));
+                    game.make_move(play_bot_move(&game, depth, book_moves, 4*60*1000));
                 }else{
                     if both{
-                        game.make_move(play_bot_move(board, depth, book_moves, 4*60*1000));
+                        game.make_move(play_bot_move(&game, depth, book_moves, 4*60*1000));
                     }else{
-                        game.make_move(play_random_move(board).expect("error_board has no moves"));
+                        game.make_move(play_random_move(game.current_position()).expect("error_board has no moves"));
                     }
 
                 }
@@ -196,12 +197,12 @@ fn play_game(starting_position: Option<String>, verbose: bool, bot_white: bool, 
                     println!("Black")
                 }
                 if !bot_white{
-                    game.make_move(play_bot_move(board, depth, book_moves, 4*60*1000));
+                    game.make_move(play_bot_move(&game, depth, book_moves, 4*60*1000));
                 }else{
                     if both{
-                        game.make_move(play_bot_move(board, depth, book_moves, 4*60*1000));
+                        game.make_move(play_bot_move(&game, depth, book_moves, 4*60*1000));
                     } else{
-                        game.make_move(play_random_move(board).expect("error_board has no moves"));
+                        game.make_move(play_random_move(game.current_position()).expect("error_board has no moves"));
                     }
 
 
@@ -380,10 +381,10 @@ fn handle_uci(){
             }
             
 
-            let board = game.current_position();
+            // let board = game.current_position();
             
             let remaining_time:u128;
-            match board.side_to_move(){
+            match game.side_to_move(){
                 chess::Color::White=>{
                     remaining_time = wtime;
                 },
@@ -392,7 +393,7 @@ fn handle_uci(){
                 }
             }
             
-            let chess_move = play_bot_move(board , max_depth, 10, remaining_time);
+            let chess_move = play_bot_move(&game , max_depth, 10, remaining_time);
             io::stdout().write(format!("bestmove {}\n", chess_move).as_bytes()).ok();
             game.make_move(chess_move);
             if book_moves> 0 {book_moves -= 1;}
@@ -413,9 +414,9 @@ fn handle_uci(){
 fn run_test_position(position: &str, remaining_time: u128){
     let now = Instant::now();
     let test = Board::from_str(position).ok().expect("invalid position");
-    let chess_move = choose_move(test, 10, remaining_time);
+    // let chess_move = choose_move(test, 10, remaining_time);
     let elapsed = now.elapsed();
-    println!("{}, {:?}", chess_move.0.expect("msg"), chess_move.1);
+    // println!("{}, {:?}", chess_move.0.expect("msg"), chess_move.1);
     println!("time to complete {:?}", elapsed);
 }
 
@@ -431,7 +432,7 @@ fn check_eval(position: &str, pawn_table: &mut chess::CacheTable<i32>){
     let mut info = search::SearchInfo::new();
     let now = Instant::now();
     
-    let eval = evaluation::evaluate_rework(&board) + search::pawn_table_lookup(&board, pawn_table, &mut info);
+    // let eval = evaluation::evaluate_rework(&board) + search::pawn_table_lookup(&board, pawn_table, &mut info);
     let elapsed = now.elapsed();
     println!("{} - {:?}", eval, elapsed);
 }
@@ -450,8 +451,8 @@ fn main() {
         // 2r5/2q4k/8/8/2K5/8/8/8 w - - 0 1
         // 8/8/8/5k2/8/8/K4Q2/5R2 b - - 0 1
         let b = &Board::from_str("k7/7Q/8/8/8/8/7q/1K6 w - - 0 1").unwrap();
-        let score = evaluation::evaluate_rework(b);
-        println!("{}", score);
+        // let score = evaluation::evaluate_rework(b);
+        // println!("{}", score);
         // // let b = Board::from_str("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1").ok().expect("invalid position");
         // // opening::write_entrys();
 
@@ -595,11 +596,11 @@ mod test{
         println!("{} - {:?}", eval, elapsed);
 
         let now = Instant::now();
-        let eval_other = evaluation::evaluate_rework(&board);
-        let elapsed = now.elapsed();
-        println!("{} - {:?}", eval_other, elapsed);
+        // let eval_other = evaluation::evaluate_rework(&board);
+        // let elapsed = now.elapsed();
+        // println!("{} - {:?}", eval_other, elapsed);
 
-        assert_eq!(eval_other, eval);
+        // assert_eq!(eval_other, eval);
     }
 
 

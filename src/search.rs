@@ -1,4 +1,4 @@
-use chess::{self, Board, ChessMove, Piece, Square, BitBoard, Color};
+use chess::{self, Board, ChessMove, Piece, Square, BitBoard, Color, Game, BoardStatus};
 use crate::{evaluation, constants::{self, Access}, utils::get_piece_type};
 use std::{time::Instant, io::{self, Write}, hash::{Hash, Hasher}};
 use std::collections::hash_map::DefaultHasher;
@@ -47,10 +47,33 @@ pub struct Entry{
     pub score: i32,
 }
 
+pub trait ChessData<T> {
+    fn make_new(&self, chess_move: ChessMove) -> Box<dyn ChessData<T>>;
+    fn get_draw(&self) -> bool;
+    fn state(&self) -> &Board;
+    fn get_hash(&self) -> u64;
+}
 
+impl ChessData<Board> for Board{
+    fn make_new(&self, chess_move: ChessMove) -> Box<dyn ChessData<Board>> {
+        Box::new(self.make_move_new(chess_move))
+    }
+    fn state(&self) -> &Board{
+        self
+    }
+    fn get_hash(&self) -> u64 {
+        self.get_hash()
+    }
+    fn get_draw(&self) -> bool {
+        if self.status() == BoardStatus::Stalemate{
+            return true;
+        }
+        return false;
+    }
+}
 
-pub fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessMove, i32)>>, max_time: u128, best_previous: ( Option<ChessMove>, i32), cachetable: &mut chess::CacheTable<Entry>, pawn_table: &mut chess::CacheTable<i32>) -> (Option<chess::ChessMove>, i32, Vec<(ChessMove, i32)>, SearchInfo, bool){
-    let movegen = chess::MoveGen::new_legal(&board);
+pub fn search_depth(game: &chess::Game, depth: u32, sorted_moves: &Option<Vec<(ChessMove, i32)>>, max_time: u128, best_previous: ( Option<ChessMove>, i32), cachetable: &mut chess::CacheTable<Entry>, pawn_table: &mut chess::CacheTable<i32>) -> (Option<chess::ChessMove>, i32, Vec<(ChessMove, i32)>, SearchInfo, bool){
+    let movegen = chess::MoveGen::new_legal(&game.current_position());
     let mut best_move:Option<chess::ChessMove> = None;
     let mut best_score = -9999;  
     let debug = false;
@@ -89,7 +112,7 @@ pub fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessM
         // remove the best move from moves list
         moves.retain(|&x| x != best_previous.0.unwrap());
         
-
+        let board = game.current_position();
         // sort moves by score and then by capture and checks 
         moves.sort_by(|a, b| {
             let a_score = table.iter().find(|&x| x.0 == *a).unwrap_or(&(ChessMove::default(), 0)).1;
@@ -102,13 +125,13 @@ pub fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessM
                 return Ordering::Greater;
             }
             else{
-                if is_capture(board, a) && !is_capture(board, b){
+                if is_capture(&board, a) && !is_capture(&board, b){
                     return Ordering::Less;
                 }
-                else if !is_capture(board, a) && is_capture(board, b) {
+                else if !is_capture(&board, a) && is_capture(&board, b) {
                     return Ordering::Greater;
                 }
-                else if is_capture(board, a) && is_capture(board, b){
+                else if is_capture(&board, a) && is_capture(&board, b){
                     return Ordering::Equal;
                 }else {
                     return Ordering::Equal;
@@ -139,7 +162,9 @@ pub fn search_depth(board: &Board, depth: u32, sorted_moves: &Option<Vec<(ChessM
 
     for chess_move in moves{
         let now = Instant::now();
-        let passed_board = board.make_move_new(chess_move); 
+        let mut passed_board = game.clone();
+        passed_board.make_move(chess_move);// .make_move_new(chess_move); 
+        
         let mut search_info = SearchInfo::new();
         let board_value = -pv_search(&passed_board, -beta, -alpha, depth, cachetable, &mut search_info, pawn_table, &mut line);
         
@@ -241,9 +266,7 @@ fn late_move_reduction(board: &Board, chess_move: ChessMove, depth: u32) -> u32{
 }
 
 
-
-
-pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut chess::CacheTable<Entry>, info: &mut SearchInfo, pawn_table: &mut chess::CacheTable<i32>, pvline: &mut Vec<ChessMove>) -> i32{
+pub fn pv_search<T>(data: &impl ChessData<T> ,alpha: i32, beta:i32, depth:u32, cache: &mut chess::CacheTable<Entry>, info: &mut SearchInfo, pawn_table: &mut chess::CacheTable<i32>, pvline: &mut Vec<ChessMove>) -> i32{
     let mut line:Vec<ChessMove> = Vec::new();
     let late_move_reduction_enabled = true;
     let null_pruning = true;
@@ -254,7 +277,7 @@ pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut che
 
     // look for the position in the cache
     if using_cache{
-        match cache.get(board.get_hash()){
+        match cache.get(data.get_hash()){
             None=>{},
             Some(desc)=>{ 
                 let entry = desc;
@@ -286,15 +309,16 @@ pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut che
     // if we reached the max depth then we'll return the score.
     if depth <= 0 { 
         pvline.clear();
-        return quiesce(board, alpha, beta, 6, info, pawn_table);
+        return quiesce(data, alpha, beta, 6, info, pawn_table);
     }
 
 
-    let in_check = board.checkers().popcnt() > 0;
+    let in_check = data.state().checkers().popcnt() > 0;
     
     // null move pruning 
     if null_pruning && depth >= 3 && !in_check{
-        if let Some(passed_board) = board.null_move(){
+        if let Some(passed_board) = data.state().null_move(){
+            
             let score =  -pv_search(&passed_board,-beta, -beta + 1, depth - 2 - 1, cache, info, pawn_table, &mut line);
             if score >= beta{
                 return beta;
@@ -309,7 +333,7 @@ pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut che
     
 
     /* decide about limited razoring at the pre-pre-frontier nodes */
-    let board_balance = evaluation::material_balance(board);
+    let board_balance = evaluation::material_balance(&data.state());
     let mut fscore = board_balance + constants::RAZORING_MARGIN;
     if !in_check && extend != 0 && depth == 3 && fscore <= alpha
         { fprune = true;  fmax = fscore; razoring = true; }
@@ -359,14 +383,14 @@ pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut che
     
     let mut first_search_pv: bool  = true;
 
-    let count = chess::MoveGen::new_legal(board);
+    let count = chess::MoveGen::new_legal(&data.state());
 
     // if this positon has no moves then its mate or a stalemate
     if count.count() == 0{
-        if board.status() == chess::BoardStatus::Stalemate{
+        if data.get_draw() {
             return 0;
         }
-        match board.side_to_move(){
+        match data.state().side_to_move(){
             chess::Color::White=>{
                 // print!("white mated");
                 return -9999 - depth as i32
@@ -407,18 +431,18 @@ pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut che
     // //}
 
 
-    let movegen = chess::MoveGen::new_legal(board);
+    let movegen = chess::MoveGen::new_legal(&data.state());
     
     // sort the moves by checks and captures
     let mut moves: Vec<ChessMove> = Vec::new();
     for chess_move in movegen{
-        if is_capture(board, &chess_move) || is_check(board, &chess_move){
+        if is_capture(&data.state(), &chess_move) || is_check(&data.state(), &chess_move){
             moves.push(chess_move);
         }
     }
-    let movegen = chess::MoveGen::new_legal(board);
+    let movegen = chess::MoveGen::new_legal(&data.state());
     for chess_move in movegen{
-        if !is_capture(board, &chess_move) && !is_check(board, &chess_move){
+        if !is_capture(&data.state(), &chess_move) && !is_check(&data.state(), &chess_move){
             moves.push(chess_move);
         }
     }
@@ -436,12 +460,13 @@ pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut che
         //     }
         // }
         
-        let passed_board = board.make_move_new(chess_move);
+        let passed_board = data.make_new(chess_move);
+        
         let mut score;
         // late move reduction
         let moves_to_reduce;
         if late_move_reduction_enabled{
-            moves_to_reduce = late_move_reduction(board, chess_move, depth);
+            moves_to_reduce = late_move_reduction(&data.state(), chess_move, depth);
         }else{
             moves_to_reduce = 0;
         }
@@ -449,7 +474,7 @@ pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut che
         if first_search_pv{
             score = -pv_search(&passed_board,-beta, -alpha, depth - 1, cache, info, pawn_table, &mut line);
         } else {
-            if !fprune || is_check(board, &chess_move) || fmax + gain(&board, &chess_move) > alpha{
+            if !fprune || is_check(&data.state(), &chess_move) || fmax + gain(&data.state(), &chess_move) > alpha{
                 score = -zero_window_search(&passed_board, -alpha, depth - 1 - moves_to_reduce, info, cache, pawn_table);
                 // in fail-soft ... && score < beta ) is common
                 if  score > alpha {
@@ -457,14 +482,14 @@ pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut che
                 }
 
             }else{
-                if razoring && is_interesting(board, chess_move){
-                    score = -zero_window_search(&passed_board, -alpha, depth - 1 - moves_to_reduce, info, cache, pawn_table);
+                if razoring && is_interesting(&data.state(), chess_move){
+                    score = -zero_window_search(&passed_board.as_ref(), -alpha, depth - 1 - moves_to_reduce, info, cache, pawn_table);
                     // in fail-soft ... && score < beta ) is common
                     if  score > alpha {
-                        score = -pv_search(&passed_board, -beta, -alpha, depth - 1, cache, info, pawn_table, &mut line); // re-search
+                        score = -pv_search(&passed_board.as_ref(), -beta, -alpha, depth - 1, cache, info, pawn_table, &mut line); // re-search
                     }
                 }else{
-                    score = quiesce(board, -beta, alpha, 6, info, pawn_table);
+                    score = quiesce(data, -beta, alpha, 6, info, pawn_table);
                 }
                     
                 
@@ -472,7 +497,7 @@ pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut che
         }
         // the move is un-made because we created a copy of the board.
         if score >= beta {
-            cache.add(board.get_hash(), Entry{ depth, node_type: Nodetype::AllNode, score: alpha });
+            cache.add(data.state().get_hash(), Entry{ depth, node_type: Nodetype::AllNode, score: alpha });
             info.transpostions_recorded += 1;
                 return beta;   // fail-hard beta-cutoff
             }
@@ -490,22 +515,22 @@ pub fn pv_search(board: &Board ,alpha: i32, beta:i32, depth:u32, cache: &mut che
             first_search_pv = false;   // *1)
         }
     }
-    cache.add(board.get_hash(), Entry{ depth, node_type: Nodetype::CutNode, score: alpha });
+    cache.add(data.get_hash(), Entry{ depth, node_type: Nodetype::CutNode, score: alpha });
     info.transpostions_recorded += 1;
     // cache.add(board.get_hash(), (_alpha, depth));
     return alpha;
  }
  
  // fail-hard zero window search, returns either beta-1 or beta
-fn zero_window_search(board: &Board, beta:i32, depth: u32, info: &mut SearchInfo, cache: &mut chess::CacheTable<Entry>, pawn_table: &mut chess::CacheTable<i32>) -> i32 {
+fn zero_window_search<T>(data: &impl ChessData<T>, beta:i32, depth: u32, info: &mut SearchInfo, cache: &mut chess::CacheTable<Entry>, pawn_table: &mut chess::CacheTable<i32>) -> i32 {
     // alpha == beta - 1
     // this is either a cut- or all-node
     let using_cache = false;
-    if depth <= 0 { return quiesce(board, beta-1, beta, 6, info, pawn_table);}
+    if depth <= 0 { return quiesce(data, beta-1, beta, 6, info, pawn_table);}
 
     let mut _beta = beta;
     if using_cache{
-        match cache.get(board.get_hash()){
+        match cache.get(data.get_hash()){
             None=>{},
             Some(desc)=>{ 
                 let entry = desc;
@@ -529,40 +554,41 @@ fn zero_window_search(board: &Board, beta:i32, depth: u32, info: &mut SearchInfo
             }
         }
     }
-    let movegen = chess::MoveGen::new_legal(board);
+    let movegen = chess::MoveGen::new_legal(&data.state());
     // sort the moves by checks and captures
     let mut moves: Vec<ChessMove> = Vec::new();
     for chess_move in movegen{
-        if is_capture(board, &chess_move) || is_check(board, &chess_move){
+        if is_capture(&data.state(), &chess_move) || is_check(&data.state(), &chess_move){
             moves.push(chess_move);
         }
     }
-    let movegen = chess::MoveGen::new_legal(board);
+    let movegen = chess::MoveGen::new_legal(&data.state());
     for chess_move in movegen{
-        if !is_capture(board, &chess_move) && !is_check(board, &chess_move){
+        if !is_capture(&data.state(), &chess_move) && !is_check(&data.state(), &chess_move){
             moves.push(chess_move);
         }
     }
 
     for chess_move in moves {
-        let passed_board = board.make_move_new(chess_move);
+        let mut passed_board = data.make_new(chess_move);
         let score = -zero_window_search(&passed_board, 1-_beta, depth - 1, info, cache, pawn_table);
 
         if score >= _beta {
-            cache.add(board.get_hash(), Entry{ depth, node_type: Nodetype::AllNode, score: _beta });
+            cache.add(data.get_hash(), Entry{ depth, node_type: Nodetype::AllNode, score: _beta });
             info.transpostions_recorded += 1;
             return _beta;   // fail-hard beta-cutoff
         }
     }
-    cache.add(board.get_hash(), Entry{ depth, node_type: Nodetype::CutNode, score: _beta-1 });
+    cache.add(data.get_hash(), Entry{ depth, node_type: Nodetype::CutNode, score: _beta-1 });
     info.transpostions_recorded += 1;
     return _beta-1; // fail-hard, return alpha
  }
 
 
- fn quiesce(board: &Board, alpha: i32, beta:i32, depth:u32, info: &mut SearchInfo, pawn_table: &mut chess::CacheTable<i32>) -> i32{
+ fn quiesce<T>(data: &impl ChessData<T>, alpha: i32, beta:i32, depth:u32, info: &mut SearchInfo, pawn_table: &mut chess::CacheTable<i32>) -> i32{
     info.nodes_searched += 1;
-    let stand_pat = evaluation::evaluate_rework(board) + pawn_table_lookup(board, pawn_table, info);
+    let board = data.state();
+    let stand_pat = evaluation::evaluate_rework(game) + pawn_table_lookup(&board, pawn_table, info);
 
     let mut _alpha = alpha;
     if stand_pat >= beta{
@@ -586,7 +612,7 @@ fn zero_window_search(board: &Board, beta:i32, depth: u32, info: &mut SearchInfo
     for chess_move in movegen{
 
         if is_capture(&board, &chess_move) || is_check(&board, &chess_move){
-            let board = board.make_move_new(chess_move);
+            let mut board = data.make_new(chess_move);
             let score = -quiesce(&board, -beta, -_alpha, depth - 1, info, pawn_table);
 
             if score >= beta{
