@@ -168,26 +168,37 @@ impl Debug for Move {
     }
 }
 
+
+use std::convert::TryInto;
+
 pub fn read_polyglot_book<R: Read>(mut reader: R) -> io::Result<HashMap<u64, Vec<PolyglotEntry>>> {
     let mut buf = [0u8; 16];
     let mut entries = HashMap::new();
+
     loop {
         match reader.read(&mut buf)? {
             0 => break Ok(entries),
             16 => {
+                // Copy bytes into temporary arrays before conversion
+                let key_bytes: [u8; 8] = buf[0..8].try_into().unwrap();
+                let move_bytes: [u8; 2] = buf[8..10].try_into().unwrap();
+                let weight_bytes: [u8; 2] = buf[10..12].try_into().unwrap();
+                let learn_bytes: [u8; 4] = buf[12..16].try_into().unwrap();
+
                 let entry = PolyglotEntry {
-                    key: u64::from_be_bytes(buf[0..8].try_into().unwrap()),
-                    move_: Move(u16::from_be_bytes(buf[8..10].try_into().unwrap())),
-                    weight: u16::from_be_bytes(buf[10..12].try_into().unwrap()),
-                    learn: u32::from_be_bytes(buf[12..16].try_into().unwrap()),
+                    key: u64::from_be_bytes(key_bytes),
+                    move_: Move(u16::from_be_bytes(move_bytes)),
+                    weight: u16::from_be_bytes(weight_bytes),
+                    learn: u32::from_be_bytes(learn_bytes),
                 };
+
                 // if the key is already in the map, append the entry to the vector
-                if let Some(entries) = entries.get_mut(&entry.key) {
-                    entries.push(entry);
+                let entry_key = entry.key;
+                if let Some(entry_vec) = entries.get_mut(&entry_key) {
+                    entry_vec.push(entry);
                 } else {
                     entries.insert(entry.key, vec![entry]);
                 }
-                
             }
             n => {
                 return Err(io::Error::new(
@@ -200,87 +211,91 @@ pub fn read_polyglot_book<R: Read>(mut reader: R) -> io::Result<HashMap<u64, Vec
 }
 
 
-pub fn write_entry<W: std::io::Write>(mut writer: W, entry: &PolyglotEntry) -> io::Result<()> {
 
-    let bytes = &entry.key.to_be_bytes();
-    writer.write_all(bytes).unwrap();
-    
-    let bytes = &entry.move_.value().to_be_bytes();
-    writer.write_all(bytes).unwrap();
-    
-    let bytes = &entry.weight.to_be_bytes();
-    writer.write_all(bytes).unwrap();
-    
-    let bytes = &entry.learn.to_be_bytes();
-    writer.write_all(bytes).unwrap();
-    // flush the buffer
-    writer.flush().unwrap();
-    return Ok(());
-}
-
-pub fn write_entrys(){
-    let path = "C:\\Users\\משתמש\\Documents\\projects\\ChessAi\\ChessAi\\book.txt";
-    let contents = fs::read_to_string(path)
-    .expect("Something went wrong reading the file");
-    // create a new file
-    let _ = std::fs::File::create("book.bin").expect("Something went wrong opening the file");
-    
-    let file = std::fs::OpenOptions::new()
-    .write(true)
-    .append(true)
-    .open("book.bin")
-    .unwrap();
-    let mut writer = std::io::BufWriter::new(file);
-
-    let splited_lines = contents.split("\n");
-    for line in splited_lines {
-        let parts = line.split(";");
-        let converted = parts.collect::<Vec<&str>>();
-        let b = Board::from_str(converted[0]).unwrap();
-        let moves: Vec<&str> = converted[1].split(" ").collect();
-        
-        for m in moves {
-            // make a polyglot entry
-            println!("{}", m);
-            match chess::ChessMove::from_san(&b, m){
-                Ok(m) => {
-                    let entry = PolyglotEntry{
-                        key: b.get_hash(),
-                        move_: convert_str_to_move(m.to_string().as_str()),
-                        weight: 0,
-                        learn: 0,
-                    };
-                    // write the entry
-                    write_entry(&mut writer, &entry).unwrap();
-                }
-                Err(e) => {
-                    println!("{} - {}", m, e);
-                }
-            
-            }
-        }
-
-    }
-
-}
-
-
-pub fn get_opening_move(path: String, board: &Board) -> Option<chess::ChessMove>{
-
-    let contents = fs::read_to_string(path)
-    .expect("Something went wrong reading the file");
-
-    let splited_lines = contents.split("\n");
-    for line in splited_lines{
-        let parts = line.split(";");
-        let converted = parts.collect::<Vec<&str>>();
-        if converted[0] == board.to_string(){
-            let moves: Vec<&str> = converted[1].split(" ").collect();
-            return chess::ChessMove::from_san(board, moves[rand::thread_rng().gen_range(0..moves.len())]).ok();
-        }
-    }
-
-    return None;
-
-    
-}
+//
+// pub fn write_entry<W: std::io::Write>(mut writer: W, entry: &PolyglotEntry) -> io::Result<()> {
+//
+//     let bytes = &entry.key.to_be_bytes();
+//     writer.write_all(bytes).unwrap();
+//
+//     let move_ = &entry.move_;
+//     let bytes = move_.value();
+//     let be = bytes.to_be_bytes();
+//     writer.write_all(bytes).unwrap();
+//
+//     let bytes = &entry.weight.to_be_bytes();
+//     writer.write_all(bytes).unwrap();
+//
+//     let bytes = &entry.learn.to_be_bytes();
+//     writer.write_all(bytes).unwrap();
+//     // flush the buffer
+//     writer.flush().unwrap();
+//     return Ok(());
+// }
+//
+// pub fn write_entrys(){
+//     let path = "C:\\Users\\משתמש\\Documents\\projects\\ChessAi\\ChessAi\\book.txt";
+//     let contents = fs::read_to_string(path)
+//     .expect("Something went wrong reading the file");
+//     // create a new file
+//     let _ = std::fs::File::create("book.bin").expect("Something went wrong opening the file");
+//
+//     let file = std::fs::OpenOptions::new()
+//     .write(true)
+//     .append(true)
+//     .open("book.bin")
+//     .unwrap();
+//     let mut writer = std::io::BufWriter::new(file);
+//
+//     let splited_lines = contents.split("\n");
+//     for line in splited_lines {
+//         let parts = line.split(";");
+//         let converted = parts.collect::<Vec<&str>>();
+//         let b = Board::from_str(converted[0]).unwrap();
+//         let moves: Vec<&str> = converted[1].split(" ").collect();
+//
+//         for m in moves {
+//             // make a polyglot entry
+//             println!("{}", m);
+//             match chess::ChessMove::from_san(&b, m){
+//                 Ok(m) => {
+//                     let entry = PolyglotEntry{
+//                         key: b.get_hash(),
+//                         move_: convert_str_to_move(m.to_string().as_str()),
+//                         weight: 0,
+//                         learn: 0,
+//                     };
+//                     // write the entry
+//                     write_entry(&mut writer, &entry).unwrap();
+//                 }
+//                 Err(e) => {
+//                     println!("{} - {}", m, e);
+//                 }
+//
+//             }
+//         }
+//
+//     }
+//
+// }
+//
+//
+// pub fn get_opening_move(path: String, board: &Board) -> Option<chess::ChessMove>{
+//
+//     let contents = fs::read_to_string(path)
+//     .expect("Something went wrong reading the file");
+//
+//     let splited_lines = contents.split("\n");
+//     for line in splited_lines{
+//         let parts = line.split(";");
+//         let converted = parts.collect::<Vec<&str>>();
+//         if converted[0] == board.to_string(){
+//             let moves: Vec<&str> = converted[1].split(" ").collect();
+//             return chess::ChessMove::from_san(board, moves[rand::thread_rng().gen_range(0..moves.len())]).ok();
+//         }
+//     }
+//
+//     return None;
+//
+//
+// }
